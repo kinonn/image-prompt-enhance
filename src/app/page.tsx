@@ -30,6 +30,12 @@ function parseSSEChunk(chunk: string, onText: (t: string) => void) {
     if (!data || data === "[DONE]" || data === "[done]") continue;
     try {
       const json = JSON.parse(data);
+
+      // Skip thinking/reasoning — only final prompt text
+      if (json.delta?.type === "thinking_delta" || json.delta?.thinking !== undefined || json.delta?.reasoning !== undefined) continue;
+      if (json.delta?.type === "reasoning_delta") continue;
+      if (json.type === "content_block_delta" && json.delta?.type === "thinking_delta") continue;
+
       const choiceDelta =
         json.choices?.[0]?.delta?.content ??
         json.choices?.[0]?.message?.content ??
@@ -40,7 +46,10 @@ function parseSSEChunk(chunk: string, onText: (t: string) => void) {
       if (json.choices?.[0]?.delta?.text) onText(json.choices[0].delta.text);
       if (json.content && typeof json.content === "string" && !json.choices) onText(json.content);
       if (json.text && typeof json.text === "string" && !json.choices) onText(json.text);
-      if (json.delta?.text && typeof json.delta.text === "string") onText(json.delta.text);
+      if (json.delta?.type === "text_delta" && typeof json.delta.text === "string") onText(json.delta.text);
+      else if (json.delta?.text && typeof json.delta.text === "string" && json.delta?.type !== "thinking_delta") {
+        if (json.delta.thinking === undefined && json.delta.reasoning === undefined) onText(json.delta.text);
+      }
       if (json.delta?.delta?.text) onText(json.delta.delta.text);
       if (json.type?.includes("output_text") && typeof json.delta === "string") onText(json.delta);
       if (json.output_text && typeof json.output_text === "string") onText(json.output_text);
@@ -65,7 +74,12 @@ async function streamResponse(res: Response, onText: (t: string) => void): Promi
       const text =
         j.choices?.[0]?.message?.content ||
         j.choices?.[0]?.text ||
-        (Array.isArray(j.content) ? j.content.map((c: { text?: string }) => c.text || "").join("") : j.content) ||
+        (Array.isArray(j.content)
+          ? j.content
+              .filter((c: { type?: string }) => c.type === "text" || c.type === undefined)
+              .map((c: { text?: string }) => c.text || "")
+              .join("")
+          : j.content) ||
         j.output_text ||
         j.text ||
         "";
@@ -81,6 +95,7 @@ async function streamResponse(res: Response, onText: (t: string) => void): Promi
   const decoder = new TextDecoder();
   let full = "";
   let buffer = "";
+  const isSSE = contentType.includes("text/event-stream");
 
   while (true) {
     const { done, value } = await reader.read();
@@ -88,14 +103,16 @@ async function streamResponse(res: Response, onText: (t: string) => void): Promi
     const chunk = decoder.decode(value, { stream: true });
     buffer += chunk;
 
-    // If response is not SSE but plain text stream, just append
-    if (!buffer.includes("data:")) {
-      // plain text streaming fallback (no SSE framing)
+    const hasData = buffer.includes("data:");
+    // Plain text fallback only for non-SSE responses
+    if (!isSSE && !hasData) {
       onText(chunk);
       full += chunk;
       buffer = "";
       continue;
     }
+    // SSE mode but no complete data: frame yet — keep buffering
+    if (!hasData) continue;
 
     // SSE: process lines ending with \n\n
     const parts = buffer.split("\n\n");
@@ -115,7 +132,7 @@ async function streamResponse(res: Response, onText: (t: string) => void): Promi
         full += t;
         onText(t);
       });
-    } else if (buffer.trim()) {
+    } else if (!isSSE && buffer.trim()) {
       onText(buffer);
       full += buffer;
     }

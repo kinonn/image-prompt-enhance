@@ -54,9 +54,25 @@ export async function POST(req: NextRequest) {
       const content =
         json.choices?.[0]?.message?.content ||
         json.choices?.[0]?.text ||
-        (Array.isArray(json.content) ? json.content.map((c: { text?: string }) => c.text || "").join("") : json.content) ||
+        (Array.isArray(json.content)
+          ? json.content
+              .filter((c: { type?: string }) => c.type === "text" || c.type === undefined)
+              .map((c: { text?: string }) => c.text || "")
+              .join("")
+          : typeof json.content === "string"
+            ? json.content
+            : "") ||
         json.output_text ||
-        (Array.isArray(json.output) ? json.output.map((o: { content?: { text?: string }[] }) => o.content?.map((c) => c.text).join("") || "").join("") : "") ||
+        (Array.isArray(json.output)
+          ? json.output
+              .map((o: { content?: { type?: string; text?: string }[] }) =>
+                (o.content || [])
+                  .filter((c) => c.type === "text" || c.type === "output_text")
+                  .map((c) => c.text)
+                  .join("")
+              )
+              .join("")
+          : "") ||
         json.text ||
         JSON.stringify(json);
       return new Response(content, {
