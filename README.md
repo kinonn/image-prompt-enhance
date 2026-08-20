@@ -40,6 +40,12 @@ npm run dev
 
 All LLM calls go through server to avoid CORS and keep keys off the client network tab (still in localStorage, never committed).
 
+## Security / SSRF
+
+The server-side proxy validates every provider `baseUrl` before fetching it (`src/lib/ssrf.ts`). Provider URLs that resolve to **private, link-local, CGNAT, multicast, or reserved** addresses are refused — this blocks using the server as a proxy to internal/cloud-metadata endpoints (`169.254.169.254`). **Loopback (`localhost`) stays allowed** so local Ollama / LM Studio providers keep working. To permit additional internal hosts, set the comma-separated `ALLOWED_PROVIDER_HOSTS` env var (e.g. `192.168.1.50`, `my-local-llm.lan`).
+
+Non-streaming providers that ignore `stream: true` are handled server-side: the single JSON response is unwrapped to plain text (`src/lib/extract.ts`) instead of being dropped by the SSE parser.
+
 ## Docker (production)
 
 ```bash

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { assertSafeProviderUrl } from "@/lib/ssrf";
 
 export async function POST(req: NextRequest) {
   try {
@@ -7,6 +8,8 @@ export async function POST(req: NextRequest) {
     if (!baseUrl) {
       return NextResponse.json({ error: "Missing baseUrl" }, { status: 400 });
     }
+
+    await assertSafeProviderUrl(baseUrl);
 
     const url = baseUrl.replace(/\/$/, "") + "/models";
     const headers: Record<string, string> = {
