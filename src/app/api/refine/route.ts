@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { REFINE_SYSTEM_PROMPT } from "@/lib/prompts";
+import { getEndpointUrl, getEndpointKind, buildChatPayload, buildAnthropicPayload, buildResponsesPayload } from "@/lib/llm";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,7 +14,8 @@ export async function POST(req: NextRequest) {
     }
 
     const baseUrl = provider.baseUrl.replace(/\/$/, "");
-    const url = `${baseUrl}/chat/completions`;
+    const url = getEndpointUrl(baseUrl, model);
+    const kind = getEndpointKind(baseUrl, model);
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -23,18 +25,15 @@ export async function POST(req: NextRequest) {
       headers["x-api-key"] = provider.apiKey;
     }
 
-    const payload = {
-      model,
-      stream: true,
-      temperature: 0.7,
-      messages: [
-        { role: "system", content: REFINE_SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: `ORIGINAL PROMPT:\n${prompt}\n\nINSTRUCTION:\n${instruction}\n\nReturn only the refined prompt:`,
-        },
-      ],
-    };
+    const userText = `ORIGINAL PROMPT:\n${prompt}\n\nINSTRUCTION:\n${instruction}\n\nReturn only the refined prompt:`;
+    let payload: unknown;
+    if (kind === "chat") {
+      payload = buildChatPayload(model, REFINE_SYSTEM_PROMPT, userText);
+    } else if (kind === "messages") {
+      payload = buildAnthropicPayload(model, REFINE_SYSTEM_PROMPT, userText);
+    } else {
+      payload = buildResponsesPayload(model, REFINE_SYSTEM_PROMPT, userText);
+    }
 
     const upstream = await fetch(url, {
       method: "POST",
@@ -52,7 +51,14 @@ export async function POST(req: NextRequest) {
 
     if (!upstream.body) {
       const json = await upstream.json();
-      const content = json.choices?.[0]?.message?.content || json.content || JSON.stringify(json);
+      const content =
+        json.choices?.[0]?.message?.content ||
+        json.choices?.[0]?.text ||
+        (Array.isArray(json.content) ? json.content.map((c: { text?: string }) => c.text || "").join("") : json.content) ||
+        json.output_text ||
+        (Array.isArray(json.output) ? json.output.map((o: { content?: { text?: string }[] }) => o.content?.map((c) => c.text).join("") || "").join("") : "") ||
+        json.text ||
+        JSON.stringify(json);
       return new Response(content, {
         headers: { "Content-Type": "text/plain; charset=utf-8" },
       });

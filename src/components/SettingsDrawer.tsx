@@ -171,9 +171,11 @@ export function SettingsDrawer({ open, onOpenChange, providers, onSaveProviders,
 
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-950/30">
               <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
-                <strong>Tip:</strong> Default is <code className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/50 rounded">OpenCode Zen</code> at{" "}
-                <code className="break-all">https://api.opencode.ai/v1</code>. For OpenRouter use{" "}
-                <code>https://openrouter.ai/api/v1</code>. For Ollama use{" "}
+                <strong>Tip:</strong> Default is <code className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/50 rounded">OpenCode Go</code> at{" "}
+                <code className="break-all">https://opencode.ai/zen/go/v1</code>. Models:{" "}
+                <code className="break-all">https://opencode.ai/zen/go/v1/models</code>. For OpenCode Zen use{" "}
+                <code>https://opencode.ai/zen/v1</code>. For OpenRouter{" "}
+                <code>https://openrouter.ai/api/v1</code>, Ollama{" "}
                 <code>http://localhost:11434/v1</code>.
               </p>
             </div>
@@ -192,7 +194,7 @@ export function SettingsDrawer({ open, onOpenChange, providers, onSaveProviders,
                 <Label htmlFor="p-name">Display name *</Label>
                 <Input
                   id="p-name"
-                  placeholder="e.g., OpenCode Zen, OpenAI, Local Ollama"
+                  placeholder="e.g., OpenCode Go, OpenCode Zen, OpenAI, Local Ollama"
                   value={editing.name}
                   onChange={(e) => setEditing({ ...editing, name: e.target.value })}
                 />
@@ -202,7 +204,7 @@ export function SettingsDrawer({ open, onOpenChange, providers, onSaveProviders,
                 <Label htmlFor="p-url">Base URL *</Label>
                 <Input
                   id="p-url"
-                  placeholder="https://api.opencode.ai/v1"
+                  placeholder="https://opencode.ai/zen/go/v1"
                   value={editing.baseUrl}
                   onChange={(e) => setEditing({ ...editing, baseUrl: e.target.value })}
                 />

@@ -15,9 +15,9 @@ export interface Model {
 
 export const DEFAULT_PROVIDERS: Provider[] = [
   {
-    id: "zen",
-    name: "OpenCode Zen",
-    baseUrl: "https://api.opencode.ai/v1",
+    id: "go",
+    name: "OpenCode Go",
+    baseUrl: "https://opencode.ai/zen/go/v1",
     apiKey: "",
     type: "openai-compatible",
   },
@@ -33,12 +33,24 @@ export function loadProviders(): Provider[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_PROVIDERS;
     const parsed = JSON.parse(raw) as Provider[];
-    // Ensure at least zen exists; migrate old storage
     if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_PROVIDERS;
-    return parsed.map((p) => ({
+    const normalized = parsed.map((p) => ({
       ...p,
       type: p.type || "openai-compatible",
     }));
+    // Migrate legacy Zen URL (api.opencode.ai) -> new Zen/Go URLs
+    const migrated = normalized.map((p) => {
+      if (p.baseUrl === "https://api.opencode.ai/v1") {
+        return { ...p, baseUrl: "https://opencode.ai/zen/v1", name: p.name === "OpenCode Zen" ? "OpenCode Zen" : p.name };
+      }
+      return p;
+    });
+    // Ensure Go exists as default; if not, prepend it
+    const hasGo = migrated.some((p) => p.baseUrl.includes("/zen/go/") || p.id === "go");
+    if (!hasGo) {
+      return [DEFAULT_PROVIDERS[0], ...migrated];
+    }
+    return migrated;
   } catch {
     return DEFAULT_PROVIDERS;
   }

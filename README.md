@@ -5,7 +5,7 @@ Simple, elegant Next.js app that turns an uploaded image into a detailed prompt 
 - **Upload image** → drag-drop / click / paste (PNG/JPEG/WebP, 10MB max, auto-resized to 1024px in-browser, never stored)
 - **Generate prompt** → single-paragraph, paste-ready for SD/Midjourney/DALL·E via vision-capable LLM
 - **Refine** → chat-like iterative edits (“more cinematic, add fog…”) with history + undo/redo + inline edit + copy
-- **Providers** → OpenCode Zen preset (`https://api.opencode.ai/v1`) by default; add any OpenAI-compatible provider (OpenRouter, Ollama `http://localhost:11434/v1`, LM Studio…) via gear → Providers. Keys in `localStorage`, proxied through Next.js API routes (no CORS, no exposure to git)
+- **Providers** → OpenCode Go preset (`https://opencode.ai/zen/go/v1`) by default (see https://opencode.ai/docs/go); add any OpenAI-compatible provider (OpenCode Zen `https://opencode.ai/zen/v1`, OpenRouter `https://openrouter.ai/api/v1`, Ollama `http://localhost:11434/v1`, LM Studio…) via gear → Providers. Keys in `localStorage`, proxied through Next.js API routes (no CORS, no exposure to git)
 - **Streaming** → token-by-token
 - **Theme** → minimal light/dark, responsive, Tailwind + shadcn/ui
 
@@ -21,13 +21,13 @@ npm run dev
 # open http://localhost:3000
 ```
 
-1. Click gear → **Providers** → set API key for OpenCode Zen (or add custom provider → Test → Save)
-2. In the config bar, pick Provider + Model (Refresh fetches `/v1/models`; pick a vision model e.g. `gpt-4o`, `claude-3.5-sonnet`, `gemini-1.5-pro`)
+1. Click gear → **Providers** → set API key for OpenCode Go (subscribe at https://opencode.ai/auth, `/connect` → Go; or add custom provider → Test → Save). Go models: https://opencode.ai/zen/go/v1/models (e.g. `glm-5.3`, `kimi-k3`, `mimo-v2.5`)
+2. In the config bar, pick Provider + Model (Refresh fetches `{baseUrl}/models`; for vision pick a vision-capable model — Go is coding-focused, so for image describe you may need Zen/OpenAI vision model e.g. `gpt-4o`, `claude-sonnet-4-5` via separate Zen provider)
 3. Drop image → **Generate prompt** → copy / edit / **Refine** iteratively
 
 ## Configuration
 
-- **Providers** stored in `localStorage:image-prompt-providers`. Default: `OpenCode Zen` (`https://api.opencode.ai/v1`).
+- **Providers** stored in `localStorage:image-prompt-providers`. Default: `OpenCode Go` (`https://opencode.ai/zen/go/v1`, docs https://opencode.ai/docs/go, models `https://opencode.ai/zen/go/v1/models`). Zen alternative: `https://opencode.ai/zen/v1`.
 - **Add generic provider**: Name, Base URL (must be OpenAI-compatible `/v1`), API Key. `Test` pings `POST /api/models`. Supports OpenRouter (`https://openrouter.ai/api/v1`), Ollama local, etc.
 - **Models**: fetched via `POST /api/models {baseUrl, apiKey}` proxy → `{models:[{id,name}]}`. Selection persisted in `localStorage`.
 - **Ephemeral images**: resized via Canvas to JPEG 1024px q0.8, base64 in memory only, discarded on clear/reload. No server storage.

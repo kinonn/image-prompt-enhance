@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { DESCRIBE_SYSTEM_PROMPT } from "@/lib/prompts";
+import { getEndpointUrl, getEndpointKind, buildChatPayload, buildAnthropicPayload, buildResponsesPayload } from "@/lib/llm";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,7 +14,8 @@ export async function POST(req: NextRequest) {
     }
 
     const baseUrl = provider.baseUrl.replace(/\/$/, "");
-    const url = `${baseUrl}/chat/completions`;
+    const url = getEndpointUrl(baseUrl, model);
+    const kind = getEndpointKind(baseUrl, model);
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -23,24 +25,28 @@ export async function POST(req: NextRequest) {
       headers["x-api-key"] = provider.apiKey;
     }
 
-    const payload = {
-      model,
-      stream: true,
-      temperature: 0.7,
-      messages: [
-        { role: "system", content: DESCRIBE_SYSTEM_PROMPT },
+    let payload: unknown;
+    if (kind === "chat") {
+      payload = buildChatPayload(model, DESCRIBE_SYSTEM_PROMPT, [
+        { type: "text", text: "Describe this image as a detailed prompt to recreate it:" },
         {
-          role: "user",
-          content: [
-            { type: "text", text: "Describe this image as a detailed prompt to recreate it:" },
-            {
-              type: "image_url",
-              image_url: { url: `data:${mime || "image/jpeg"};base64,${imageBase64}` },
-            },
-          ],
+          type: "image_url",
+          image_url: { url: `data:${mime || "image/jpeg"};base64,${imageBase64}` },
         },
-      ],
-    };
+      ]);
+    } else if (kind === "messages") {
+      payload = buildAnthropicPayload(model, DESCRIBE_SYSTEM_PROMPT, {
+        text: "Describe this image as a detailed prompt to recreate it:",
+        imageBase64,
+        mime,
+      });
+    } else {
+      payload = buildResponsesPayload(model, DESCRIBE_SYSTEM_PROMPT, {
+        text: "Describe this image as a detailed prompt to recreate it:",
+        imageBase64,
+        mime,
+      });
+    }
 
     const upstream = await fetch(url, {
       method: "POST",
@@ -60,7 +66,14 @@ export async function POST(req: NextRequest) {
     const contentType = upstream.headers.get("content-type") || "";
     if (!upstream.body) {
       const json = await upstream.json();
-      const content = json.choices?.[0]?.message?.content || json.content || JSON.stringify(json);
+      const content =
+        json.choices?.[0]?.message?.content ||
+        json.choices?.[0]?.text ||
+        (Array.isArray(json.content) ? json.content.map((c: { text?: string }) => c.text || "").join("") : json.content) ||
+        json.output_text ||
+        (Array.isArray(json.output) ? json.output.map((o: { content?: { text?: string }[] }) => o.content?.map((c) => c.text).join("") || "").join("") : "") ||
+        json.text ||
+        JSON.stringify(json);
       return new Response(content, {
         headers: { "Content-Type": "text/plain; charset=utf-8" },
       });

@@ -27,18 +27,23 @@ function parseSSEChunk(chunk: string, onText: (t: string) => void) {
     const t = line.trim();
     if (!t.startsWith("data:")) continue;
     const data = t.slice(5).trim();
-    if (!data || data === "[DONE]") continue;
+    if (!data || data === "[DONE]" || data === "[done]") continue;
     try {
       const json = JSON.parse(data);
-      const delta: string =
+      const choiceDelta =
         json.choices?.[0]?.delta?.content ??
         json.choices?.[0]?.message?.content ??
         json.choices?.[0]?.text ??
-        json.content ??
+        (typeof json.content === "string" ? json.content : "") ??
         "";
-      if (delta) onText(delta);
-      // Anthropic style?
-      if (json.delta?.text) onText(json.delta.text);
+      if (typeof choiceDelta === "string" && choiceDelta) onText(choiceDelta);
+      if (json.choices?.[0]?.delta?.text) onText(json.choices[0].delta.text);
+      if (json.content && typeof json.content === "string" && !json.choices) onText(json.content);
+      if (json.text && typeof json.text === "string" && !json.choices) onText(json.text);
+      if (json.delta?.text && typeof json.delta.text === "string") onText(json.delta.text);
+      if (json.delta?.delta?.text) onText(json.delta.delta.text);
+      if (json.type?.includes("output_text") && typeof json.delta === "string") onText(json.delta);
+      if (json.output_text && typeof json.output_text === "string") onText(json.output_text);
     } catch {
       // ignore keepalive
     }
@@ -57,7 +62,13 @@ async function streamResponse(res: Response, onText: (t: string) => void): Promi
     // fallback non-stream JSON
     if (contentType.includes("application/json")) {
       const j = await res.json();
-      const text = j.choices?.[0]?.message?.content || j.content || "";
+      const text =
+        j.choices?.[0]?.message?.content ||
+        j.choices?.[0]?.text ||
+        (Array.isArray(j.content) ? j.content.map((c: { text?: string }) => c.text || "").join("") : j.content) ||
+        j.output_text ||
+        j.text ||
+        "";
       onText(text);
       return text;
     }
@@ -577,8 +588,7 @@ export default function Home() {
               <div className="space-y-1">
                 <p className="text-sm font-medium">How it works</p>
                 <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                  1. Pick a vision-capable model (e.g. <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-xs dark:bg-zinc-800">gpt-4o</code> or{" "}
-                  <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-xs dark:bg-zinc-800">claude-3.5-sonnet</code>).<br />
+                  1. Default is <strong>OpenCode Go</strong> (<code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-xs dark:bg-zinc-800">https://opencode.ai/zen/go/v1</code> — coding models like <code>glm-5.3</code>, <code>kimi-k3</code>). For image describe you need a vision model — add <strong>OpenCode Zen</strong> (<code>https://opencode.ai/zen/v1</code>) via gear → Providers and pick e.g. <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-xs dark:bg-zinc-800">gpt-4o</code> / <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-xs dark:bg-zinc-800">claude-sonnet-4-5</code>).<br />
                   2. Upload → Generate builds a single-paragraph prompt.<br />
                   3. Refine iteratively: “make it watercolor”, “add fog”, etc. Edit inline anytime. Copy when ready.
                 </p>
