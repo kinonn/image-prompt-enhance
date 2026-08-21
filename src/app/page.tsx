@@ -1,11 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Settings, Sparkles, Image as ImageIcon, Moon, Sun, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { Settings, Sparkles, Image as ImageIcon, Moon, Sun, Loader2, Trash2 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
-import { Card } from "@/components/ui/card";
 import { DropZone } from "@/components/DropZone";
 import { PromptCard } from "@/components/PromptCard";
 import { RefineBar } from "@/components/RefineBar";
@@ -449,7 +447,6 @@ export default function Home() {
     );
   }
 
-  const modelsForSelected = selectedProvider ? modelsCache[selectedProvider.id] || [] : [];
   const canGenerate = !!file && !!imageBase64 && !!selectedProvider && !!selectedModel && !isDescribing && !isRefining;
 
   return (
@@ -483,69 +480,6 @@ export default function Home() {
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
         <div className="space-y-6">
-          {/* Config bar */}
-          <Card className="p-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Provider</label>
-                <Select
-                  value={selectedProviderId}
-                  onChange={(e) => onSelectProvider(e.target.value)}
-                  className="w-full"
-                  placeholder="Select provider"
-                >
-                  {providers.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} — {new URL(p.baseUrl).hostname}
-                    </option>
-                  ))}
-                </Select>
-                {selectedProvider && !selectedProvider.apiKey && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400">No API key set — add in Providers</p>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Model</label>
-                  <button
-                    onClick={() => selectedProvider && fetchModels(selectedProvider)}
-                    disabled={!selectedProvider || !!loadingModelsFor}
-                    className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 disabled:opacity-50"
-                  >
-                    {loadingModelsFor === selectedProviderId ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                    Refresh
-                  </button>
-                </div>
-                <Select
-                  value={selectedModel}
-                  onChange={(e) => onSelectModel(e.target.value)}
-                  placeholder={loadingModelsFor ? "Loading..." : "Select model"}
-                  disabled={!selectedProvider || modelsForSelected.length === 0}
-                >
-                  {modelsForSelected.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name || m.id}
-                    </option>
-                  ))}
-                  {modelsForSelected.length === 0 && <option value="">No models — refresh or check provider</option>}
-                </Select>
-                {selectedProvider && loadingModelsFor === selectedProvider.id && (
-                  <p className="text-xs text-zinc-500 flex items-center gap-1">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Fetching models from provider...
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {selectedProvider && (
-              <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                Using <span className="font-medium text-zinc-700 dark:text-zinc-300">{selectedProvider.name}</span> at{" "}
-                <span className="font-mono text-xs">{selectedProvider.baseUrl}</span> • {modelsForSelected.length} models
-              </p>
-            )}
-          </Card>
-
           {/* Drop zone */}
           <DropZone
             onFileSelect={handleFileSelect}
@@ -636,6 +570,10 @@ export default function Home() {
         modelsCache={modelsCache}
         onRefreshModels={fetchModels}
         loadingModelsFor={loadingModelsFor}
+        selectedProviderId={selectedProviderId}
+        onSelectProvider={onSelectProvider}
+        selectedModel={selectedModel}
+        onSelectModel={onSelectModel}
       />
     </div>
   );

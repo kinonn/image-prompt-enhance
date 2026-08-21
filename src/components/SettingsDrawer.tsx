@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Settings, Plus, Trash2, TestTube, Eye, EyeOff, Loader2, Check, AlertCircle } from "lucide-react";
+import { Settings, Plus, Trash2, TestTube, Eye, EyeOff, Loader2, Check, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Provider, Model } from "@/lib/providers";
@@ -19,9 +20,25 @@ interface SettingsDrawerProps {
   modelsCache: Record<string, Model[]>;
   onRefreshModels: (provider: Provider) => Promise<void>;
   loadingModelsFor?: string | null;
+  selectedProviderId: string;
+  onSelectProvider: (id: string) => void;
+  selectedModel: string;
+  onSelectModel: (id: string) => void;
 }
 
-export function SettingsDrawer({ open, onOpenChange, providers, onSaveProviders, modelsCache, onRefreshModels }: SettingsDrawerProps) {
+export function SettingsDrawer({
+  open,
+  onOpenChange,
+  providers,
+  onSaveProviders,
+  modelsCache,
+  onRefreshModels,
+  loadingModelsFor,
+  selectedProviderId,
+  onSelectProvider,
+  selectedModel,
+  onSelectModel,
+}: SettingsDrawerProps) {
   const [editing, setEditing] = React.useState<Provider | null>(null);
   const [isNew, setIsNew] = React.useState(false);
   const [showKey, setShowKey] = React.useState(false);
@@ -105,6 +122,9 @@ export function SettingsDrawer({ open, onOpenChange, providers, onSaveProviders,
     }
   };
 
+  const selectedProvider = providers.find((p) => p.id === selectedProviderId);
+  const selectedModels = modelsCache[selectedProviderId] || [];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent onClose={() => onOpenChange(false)} className="max-w-[560px]">
@@ -118,6 +138,72 @@ export function SettingsDrawer({ open, onOpenChange, providers, onSaveProviders,
 
         {!editing ? (
           <div className="space-y-4">
+            <div className="rounded-xl border border-zinc-200 p-4 space-y-3 dark:border-zinc-800">
+              <p className="text-sm font-medium">Active provider &amp; model</p>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="sel-provider">Provider</Label>
+                <Select
+                  id="sel-provider"
+                  value={selectedProviderId}
+                  onChange={(e) => onSelectProvider(e.target.value)}
+                  className="w-full"
+                  placeholder="Select provider"
+                >
+                  {providers.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} — {new URL(p.baseUrl).hostname}
+                    </option>
+                  ))}
+                </Select>
+                {selectedProvider && !selectedProvider.apiKey && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">No API key set for this provider — add one below.</p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="sel-model">Model</Label>
+                  <button
+                    type="button"
+                    onClick={() => selectedProvider && onRefreshModels(selectedProvider)}
+                    disabled={!selectedProvider || !!loadingModelsFor}
+                    className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 disabled:opacity-50"
+                  >
+                    {loadingModelsFor === selectedProviderId ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                    Refresh
+                  </button>
+                </div>
+                <Select
+                  id="sel-model"
+                  value={selectedModel}
+                  onChange={(e) => onSelectModel(e.target.value)}
+                  placeholder={loadingModelsFor ? "Loading..." : "Select model"}
+                  disabled={!selectedProvider || selectedModels.length === 0}
+                >
+                  {selectedModels.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name || m.id}
+                    </option>
+                  ))}
+                  {selectedModels.length === 0 && <option value="">No models — refresh or check provider</option>}
+                </Select>
+                {selectedProvider && loadingModelsFor === selectedProvider.id && (
+                  <p className="text-xs text-zinc-500 flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Fetching models from provider...
+                  </p>
+                )}
+              </div>
+
+              {selectedProvider && (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                  Using <span className="font-medium text-zinc-700 dark:text-zinc-300">{selectedProvider.name}</span> at{" "}
+                  <span className="font-mono text-xs">{selectedProvider.baseUrl}</span>
+                  {selectedModel ? ` • ${selectedModel}` : ""}
+                </p>
+              )}
+            </div>
+
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium">Configured providers</p>
               <Button size="sm" onClick={handleAdd}>
