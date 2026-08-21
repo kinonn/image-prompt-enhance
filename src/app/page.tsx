@@ -533,6 +533,7 @@ export default function Home() {
             onSelectHistory={handleSelectHistory}
             currentIndex={currentIdx}
             disabled={isDescribing}
+            result={currentPrompt}
           />
 
           {/* Footer hints */}
