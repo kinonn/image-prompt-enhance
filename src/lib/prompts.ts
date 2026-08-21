@@ -33,3 +33,23 @@ Rules:
 - If the instruction is vague, interpret it creatively but faithfully.
 - If the instruction contradicts the original, prioritize the instruction.
 - Keep the length similar (80-180 words) unless instruction asks for brevity or expansion.`;
+
+// Default alias (stable reference for reset) + localStorage persistence
+export const DEFAULT_DESCRIBE_SYSTEM_PROMPT = DESCRIBE_SYSTEM_PROMPT;
+export const DESCRIBE_PROMPT_STORAGE_KEY = "image-prompt-describe-prompt";
+
+export function loadDescribePrompt(): string {
+  if (typeof window === "undefined") return DEFAULT_DESCRIBE_SYSTEM_PROMPT;
+  try {
+    const raw = localStorage.getItem(DESCRIBE_PROMPT_STORAGE_KEY);
+    if (raw !== null && raw.trim()) return raw;
+    return DEFAULT_DESCRIBE_SYSTEM_PROMPT;
+  } catch {
+    return DEFAULT_DESCRIBE_SYSTEM_PROMPT;
+  }
+}
+
+export function saveDescribePrompt(prompt: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(DESCRIBE_PROMPT_STORAGE_KEY, prompt);
+}

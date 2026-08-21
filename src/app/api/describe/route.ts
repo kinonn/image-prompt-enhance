@@ -6,7 +6,7 @@ import { assertSafeProviderUrl } from "@/lib/ssrf";
 
 export async function POST(req: NextRequest) {
   try {
-    const { imageBase64, mime, provider, model } = await req.json();
+    const { imageBase64, mime, provider, model, describePrompt } = await req.json();
 
     if (!imageBase64 || !provider?.baseUrl || !model) {
       return new Response(JSON.stringify({ error: "Missing image, provider, or model" }), {
@@ -21,6 +21,10 @@ export async function POST(req: NextRequest) {
     const url = getEndpointUrl(baseUrl, model);
     const kind = getEndpointKind(baseUrl, model);
 
+    const systemPrompt = typeof describePrompt === "string" && describePrompt.trim()
+      ? describePrompt.trim()
+      : DESCRIBE_SYSTEM_PROMPT;
+
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -31,7 +35,7 @@ export async function POST(req: NextRequest) {
 
     let payload: unknown;
     if (kind === "chat") {
-      payload = buildChatPayload(model, DESCRIBE_SYSTEM_PROMPT, [
+      payload = buildChatPayload(model, systemPrompt, [
         { type: "text", text: "Describe this image as a detailed prompt to recreate it:" },
         {
           type: "image_url",
@@ -39,13 +43,13 @@ export async function POST(req: NextRequest) {
         },
       ]);
     } else if (kind === "messages") {
-      payload = buildAnthropicPayload(model, DESCRIBE_SYSTEM_PROMPT, {
+      payload = buildAnthropicPayload(model, systemPrompt, {
         text: "Describe this image as a detailed prompt to recreate it:",
         imageBase64,
         mime,
       });
     } else {
-      payload = buildResponsesPayload(model, DESCRIBE_SYSTEM_PROMPT, {
+      payload = buildResponsesPayload(model, systemPrompt, {
         text: "Describe this image as a detailed prompt to recreate it:",
         imageBase64,
         mime,
