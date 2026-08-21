@@ -357,7 +357,12 @@ export default function Home() {
   };
 
   const handleRefine = async (instruction: string) => {
-    if (currentIdx < 0 || !history[currentIdx]) return;
+    // Refine operates only on the current prompt text — the image is never
+    // resent (the /api/refine route takes prompt + instruction only).
+    if (currentIdx < 0 || !history[currentIdx]?.prompt?.trim()) {
+      toast.error("Nothing to refine yet — generate a prompt first.");
+      return;
+    }
     if (!selectedProvider || !selectedModel) {
       toast.error("Select provider/model");
       return;
