@@ -49,7 +49,7 @@ export function PromptCard({
           </div>
           <CardTitle className="text-[13px] font-semibold tracking-widest uppercase text-zinc-500 dark:text-zinc-400">Generated Prompt</CardTitle>
           {isStreaming && <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400" />}
-          {!isStreaming && prompt && (
+          {!isStreaming && totalVersions > 0 && prompt && (
             <Badge variant="secondary" className="text-[11px] font-mono">
               v{version}/{totalVersions}
             </Badge>
