@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { DESCRIBE_SYSTEM_PROMPT } from "@/lib/prompts";
 import { getEndpointUrl, getEndpointKind, buildChatPayload, buildAnthropicPayload, buildResponsesPayload } from "@/lib/llm";
+import { extractResponseText } from "@/lib/extract";
+import { assertSafeProviderUrl } from "@/lib/ssrf";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,6 +14,8 @@ export async function POST(req: NextRequest) {
         headers: { "Content-Type": "application/json" },
       });
     }
+
+    await assertSafeProviderUrl(provider.baseUrl);
 
     const baseUrl = provider.baseUrl.replace(/\/$/, "");
     const url = getEndpointUrl(baseUrl, model);
@@ -62,48 +66,25 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // If upstream is not streaming (some providers), handle non-stream fallback — filter thinking
+    // Streaming providers forward as SSE; the client parses the events.
     const contentType = upstream.headers.get("content-type") || "";
-    if (!upstream.body) {
-      const json = await upstream.json();
-      const content =
-        json.choices?.[0]?.message?.content ||
-        json.choices?.[0]?.text ||
-        (Array.isArray(json.content)
-          ? json.content
-              .filter((c: { type?: string }) => c.type === "text" || c.type === undefined)
-              .map((c: { text?: string }) => c.text || "")
-              .join("")
-          : typeof json.content === "string"
-            ? json.content
-            : "") ||
-        json.output_text ||
-        (Array.isArray(json.output)
-          ? json.output
-              .map((o: { content?: { type?: string; text?: string }[] }) =>
-                (o.content || [])
-                  .filter((c) => c.type === "text" || c.type === "output_text")
-                  .map((c) => c.text)
-                  .join("")
-              )
-              .join("")
-          : "") ||
-        json.text ||
-        JSON.stringify(json);
-      return new Response(content, {
-        headers: { "Content-Type": "text/plain; charset=utf-8" },
+    if (contentType.includes("text/event-stream")) {
+      return new Response(upstream.body, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
       });
     }
 
-    // Stream through SSE passthrough, converting to plain text chunks
-    // We'll forward SSE as text/plain chunks for client to parse
-    // Keep SSE format for client parser to work uniformly
-    return new Response(upstream.body, {
-      headers: {
-        "Content-Type": contentType.includes("text/event-stream") ? "text/event-stream" : "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      },
+    // Non-streaming fallback: some providers ignore `stream: true` and return a
+    // single JSON body. Extract the text here and hand the client plain text so
+    // it renders instead of being silently dropped by the SSE parser.
+    const json = await upstream.json();
+    const content = extractResponseText(json);
+    return new Response(content, {
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
