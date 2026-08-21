@@ -57,7 +57,7 @@ export function RefineBar({ hasPrompt, isRefining, onRefine, history, onSelectHi
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900">
             <Wand2 className="h-3.5 w-3.5" />
           </div>
           <CardTitle className="text-[13px] font-semibold tracking-widest uppercase text-zinc-500 dark:text-zinc-400">Refine Prompt</CardTitle>
