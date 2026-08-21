@@ -357,7 +357,12 @@ export default function Home() {
   };
 
   const handleRefine = async (instruction: string) => {
-    if (currentIdx < 0 || !history[currentIdx]) return;
+    // Refine operates only on the current prompt text — the image is never
+    // resent (the /api/refine route takes prompt + instruction only).
+    if (currentIdx < 0 || !history[currentIdx]?.prompt?.trim()) {
+      toast.error("Nothing to refine yet — generate a prompt first.");
+      return;
+    }
     if (!selectedProvider || !selectedModel) {
       toast.error("Select provider/model");
       return;
@@ -553,9 +558,9 @@ export default function Home() {
           {/* Generate button */}
           {file && (
             <div className="flex gap-2">
-              <Button onClick={handleGenerate} disabled={!canGenerate} className="flex-1 h-11 text-[15px] font-medium">
+              <Button onClick={handleGenerate} disabled={!canGenerate} className="flex-1 h-11 text-[15px] font-medium" title={history.length > 0 ? "Re-run the image description; this overwrites the current prompt. Use Refine instead to edit it." : undefined}>
                 {isDescribing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {isDescribing ? "Generating prompt..." : history.length === 0 ? "Generate prompt" : "Regenerate prompt"}
+                {isDescribing ? "Generating prompt..." : history.length === 0 ? "Generate prompt" : "Re-describe from image"}
               </Button>
               {history.length > 0 && (
                 <Button

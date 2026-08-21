@@ -29,7 +29,9 @@ export function RefineBar({ hasPrompt, isRefining, onRefine, history, onSelectHi
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     const trimmed = instruction.trim();
-    if (!trimmed || !hasPrompt || isRefining || disabled) return;
+    // Let the parent decide: it refines only on real prompt content and
+    // shows a clear message when there is nothing to refine yet.
+    if (!trimmed || isRefining || disabled) return;
     onRefine(trimmed);
     setInstruction("");
   };
@@ -68,12 +70,12 @@ export function RefineBar({ hasPrompt, isRefining, onRefine, history, onSelectHi
             onChange={(e) => setInstruction(e.target.value)}
             onKeyDown={handleKeyDown}
             rows={3}
-            disabled={!hasPrompt || isRefining || disabled}
+            disabled={isRefining || disabled}
             className="resize-none"
           />
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-zinc-500 dark:text-zinc-400 hidden sm:block">Cmd+Enter to send • Be specific for best results</p>
-            <Button type="submit" disabled={!instruction.trim() || !hasPrompt || isRefining || disabled} className="ml-auto">
+            <Button type="submit" disabled={!instruction.trim() || isRefining || disabled} className="ml-auto">
               {isRefining ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {isRefining ? "Refining..." : "Refine"}
             </Button>
