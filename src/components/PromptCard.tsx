@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Copy, Check, Pencil, Save, X, Sparkles, Loader2 } from "lucide-react";
+import { Copy, Check, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,9 +20,17 @@ interface PromptCardProps {
   canRedo?: boolean;
 }
 
-export function PromptCard({ prompt, isStreaming, onChangePrompt, version, totalVersions, onUndo, onRedo, canUndo, canRedo }: PromptCardProps) {
-  const [editing, setEditing] = React.useState(false);
-  const [draft, setDraft] = React.useState(prompt);
+export function PromptCard({
+  prompt,
+  isStreaming,
+  onChangePrompt,
+  version,
+  totalVersions,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+}: PromptCardProps) {
   const [copied, setCopied] = React.useState(false);
 
   const handleCopy = async () => {
@@ -30,12 +38,6 @@ export function PromptCard({ prompt, isStreaming, onChangePrompt, version, total
     setCopied(true);
     toast.success("Copied to clipboard");
     setTimeout(() => setCopied(false), 1500);
-  };
-
-  const handleSaveEdit = () => {
-    onChangePrompt(draft);
-    setEditing(false);
-    toast.success("Prompt updated");
   };
 
   return (
@@ -47,7 +49,7 @@ export function PromptCard({ prompt, isStreaming, onChangePrompt, version, total
           </div>
           <CardTitle className="text-[13px] font-semibold tracking-widest uppercase text-zinc-500 dark:text-zinc-400">Generated Prompt</CardTitle>
           {isStreaming && <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400" />}
-          {!isStreaming && prompt && (
+          {!isStreaming && totalVersions > 0 && prompt && (
             <Badge variant="secondary" className="text-[11px] font-mono">
               v{version}/{totalVersions}
             </Badge>
@@ -64,62 +66,31 @@ export function PromptCard({ prompt, isStreaming, onChangePrompt, version, total
               Redo
             </Button>
           )}
-          {!editing ? (
-            <>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  setDraft(prompt);
-                  setEditing(true);
-                }}
-                disabled={!prompt || isStreaming}
-                className="h-8 w-8"
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleCopy} disabled={!prompt} className="h-8">
-                {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
-                {copied ? "Copied" : "Copy"}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button variant="ghost" size="sm" onClick={() => setEditing(false)} className="h-8">
-                <X className="h-3.5 w-3.5" /> Cancel
-              </Button>
-              <Button size="sm" onClick={handleSaveEdit} className="h-8">
-                <Save className="h-3.5 w-3.5" /> Save
-              </Button>
-            </>
-          )}
+          <Button variant="outline" size="sm" onClick={handleCopy} disabled={!prompt || isStreaming} className="h-8">
+            {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? "Copied" : "Copy"}
+          </Button>
         </div>
       </CardHeader>
-      <CardContent>
-        {!prompt && !isStreaming ? (
-          <div className="rounded-xl border border-dashed border-zinc-200 bg-zinc-50 p-8 text-center dark:border-zinc-800 dark:bg-zinc-900/50">
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">Your detailed recreate prompt will appear here</p>
-            <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">Upload an image and configure a vision model</p>
-          </div>
-        ) : editing ? (
-          <Textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            rows={6}
-            className="min-h-[140px] resize-y font-mono text-sm leading-relaxed"
-            placeholder="Edit prompt..."
-            autoFocus
-          />
-        ) : (
-          <div className="relative rounded-xl bg-zinc-50 p-4 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800">
+      <CardContent className="space-y-2">
+        {isStreaming ? (
+          <div className="rounded-xl bg-zinc-50 p-4 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800">
             <p className="whitespace-pre-wrap font-mono text-[13px] leading-relaxed text-zinc-800 dark:text-zinc-100">
               {prompt}
-              {isStreaming && <span className="inline-block h-3 w-1.5 bg-zinc-900 dark:bg-zinc-100 ml-0.5 animate-pulse align-middle" />}
+              <span className="inline-block h-3 w-1.5 bg-zinc-900 dark:bg-zinc-100 ml-0.5 animate-pulse align-middle" />
             </p>
           </div>
+        ) : (
+          <Textarea
+            value={prompt}
+            onChange={(e) => onChangePrompt(e.target.value)}
+            rows={6}
+            className="min-h-[140px] resize-y font-mono text-sm leading-relaxed"
+            placeholder="Type a prompt here — or upload an image and click Generate."
+          />
         )}
-        {prompt && !editing && (
-          <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+        {prompt && (
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
             {prompt.split(/\s+/).filter(Boolean).length} words • {prompt.length} chars
           </p>
         )}
