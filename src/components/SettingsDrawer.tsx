@@ -3,6 +3,8 @@
 import * as React from "react";
 import { Settings, Plus, Trash2, TestTube, Eye, EyeOff, Loader2, Check, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { DEFAULT_DESCRIBE_SYSTEM_PROMPT, loadDescribePrompt, saveDescribePrompt } from "@/lib/prompts";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -44,6 +46,11 @@ export function SettingsDrawer({
   const [showKey, setShowKey] = React.useState(false);
   const [testingId, setTestingId] = React.useState<string | null>(null);
   const [testResult, setTestResult] = React.useState<Record<string, { ok: boolean; msg: string }>>({});
+  const [describePrompt, setDescribePrompt] = React.useState(DEFAULT_DESCRIBE_SYSTEM_PROMPT);
+
+  React.useEffect(() => {
+    if (open) setDescribePrompt(loadDescribePrompt());
+  }, [open]);
 
   const emptyProvider = (): Provider => ({
     id: `custom-${Date.now()}`,
@@ -253,6 +260,48 @@ export function SettingsDrawer({
                   </CardHeader>
                 </Card>
               ))}
+            </div>
+
+            <div className="rounded-xl border border-zinc-200 p-4 space-y-3 dark:border-zinc-800">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium">Image describe prompt</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    setDescribePrompt(DEFAULT_DESCRIBE_SYSTEM_PROMPT);
+                    saveDescribePrompt(DEFAULT_DESCRIBE_SYSTEM_PROMPT);
+                    toast.success("Reset to default");
+                  }}
+                >
+                  Reset
+                </Button>
+              </div>
+              <p className="text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+                System prompt sent when generating from an image. Edit and save; empty resets to default on next generate.
+              </p>
+              <Textarea
+                value={describePrompt}
+                onChange={(e) => setDescribePrompt(e.target.value)}
+                rows={8}
+                className="min-h-[140px] font-mono text-xs leading-relaxed"
+                placeholder={DEFAULT_DESCRIBE_SYSTEM_PROMPT}
+              />
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const v = describePrompt.trim() || DEFAULT_DESCRIBE_SYSTEM_PROMPT;
+                    if (!describePrompt.trim()) setDescribePrompt(v);
+                    saveDescribePrompt(v);
+                    toast.success("Describe prompt saved");
+                  }}
+                >
+                  Save prompt
+                </Button>
+                <span className="text-xs leading-8 text-zinc-500">{describePrompt.length} chars</span>
+              </div>
             </div>
 
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-950/30">

@@ -11,6 +11,7 @@ import { SettingsDrawer } from "@/components/SettingsDrawer";
 import { resizeImage } from "@/lib/image";
 import { loadProviders, saveProviders, getSelectedProviderId, setSelectedProviderId, getSelectedModelId, setSelectedModelId, getProviderById } from "@/lib/providers";
 import type { Provider, Model } from "@/lib/providers";
+import { loadDescribePrompt } from "@/lib/prompts";
 import { toast } from "sonner";
 
 interface HistoryEntry {
@@ -321,6 +322,7 @@ export default function Home() {
           mime: imageMime,
           provider: { baseUrl: selectedProvider.baseUrl, apiKey: selectedProvider.apiKey },
           model: selectedModel,
+          describePrompt: loadDescribePrompt(),
         }),
       });
 
