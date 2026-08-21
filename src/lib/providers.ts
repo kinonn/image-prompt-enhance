@@ -21,6 +21,13 @@ export const DEFAULT_PROVIDERS: Provider[] = [
     apiKey: "",
     type: "openai-compatible",
   },
+  {
+    id: "ollama",
+    name: "Ollama",
+    baseUrl: "http://localhost:11434/v1",
+    apiKey: "",
+    type: "openai-compatible",
+  },
 ];
 
 const STORAGE_KEY = "image-prompt-providers";
@@ -48,7 +55,12 @@ export function loadProviders(): Provider[] {
     // Ensure Go exists as default; if not, prepend it
     const hasGo = migrated.some((p) => p.baseUrl.includes("/zen/go/") || p.id === "go");
     if (!hasGo) {
-      return [DEFAULT_PROVIDERS[0], ...migrated];
+      migrated.unshift(DEFAULT_PROVIDERS[0]);
+    }
+    // Ensure Ollama exists as default; if not, append it
+    const hasOllama = migrated.some((p) => p.id === "ollama" || p.baseUrl.includes("11434"));
+    if (!hasOllama) {
+      migrated.push(DEFAULT_PROVIDERS[1]);
     }
     return migrated;
   } catch {

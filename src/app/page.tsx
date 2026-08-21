@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Settings, Sparkles, Image as ImageIcon, Moon, Sun, Loader2, Trash2 } from "lucide-react";
+import { Settings, Sparkles, Moon, Sun, Loader2, Trash2 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { DropZone } from "@/components/DropZone";
@@ -13,12 +13,6 @@ import { loadProviders, saveProviders, getSelectedProviderId, setSelectedProvide
 import type { Provider, Model } from "@/lib/providers";
 import { loadDescribePrompt } from "@/lib/prompts";
 import { toast } from "sonner";
-
-interface HistoryEntry {
-  prompt: string;
-  instruction: string;
-  timestamp: number;
-}
 
 function parseSSEChunk(chunk: string, onText: (t: string) => void) {
   const lines = chunk.split("\n");
@@ -152,21 +146,25 @@ export default function Home() {
   const [imageBase64, setImageBase64] = React.useState<string | null>(null);
   const [imageMime, setImageMime] = React.useState<string>("image/jpeg");
 
-  const [history, setHistory] = React.useState<HistoryEntry[]>([]);
-  const [currentIdx, setCurrentIdx] = React.useState(-1);
   const [isDescribing, setIsDescribing] = React.useState(false);
   const [isRefining, setIsRefining] = React.useState(false);
   const [streamingText, setStreamingText] = React.useState("");
 
   // Single source of truth for the Generated Prompt box. It starts empty and is
-  // directly editable (typing works without uploading an image). Generation and
-  // refinement commit their results into it; history keeps snapshots for undo/redo.
+  // directly editable (typing works without uploading an image). Generation
+  // commits its result here; refinement leaves it untouched.
   const [promptText, setPromptText] = React.useState("");
+
+  // Output of the latest refinement, shown in the "Refined Prompt" box inside
+  // the RefineBar.
+  const [refinedText, setRefinedText] = React.useState("");
 
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
 
-  const displayPrompt = isDescribing || isRefining ? streamingText : promptText;
+  // Only image description streams into the Generated Prompt box; refinement
+  // streams into the Refined Prompt box instead.
+  const displayPrompt = isDescribing ? streamingText : promptText;
 
   // init
   React.useEffect(() => {
@@ -281,11 +279,10 @@ export default function Home() {
       toast.error("Failed to process image");
       console.error(e);
     }
-    // reset history
-    setHistory([]);
-    setCurrentIdx(-1);
+    // reset prompts
     setStreamingText("");
     setPromptText("");
+    setRefinedText("");
   };
 
   const handleClear = () => {
@@ -293,10 +290,18 @@ export default function Home() {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     setImageBase64(null);
-    setHistory([]);
-    setCurrentIdx(-1);
     setStreamingText("");
     setPromptText("");
+    setRefinedText("");
+  };
+
+  // Remove only the uploaded image — the generated and refined prompts are
+  // left untouched so the user can keep working with them.
+  const handleRemoveImage = () => {
+    setFile(null);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    setImageBase64(null);
   };
 
   const handleGenerate = async () => {
@@ -310,8 +315,7 @@ export default function Home() {
 
     setIsDescribing(true);
     setStreamingText("");
-    setHistory([]);
-    setCurrentIdx(-1);
+    setRefinedText("");
 
     try {
       const res = await fetch("/api/describe", {
@@ -346,9 +350,6 @@ export default function Home() {
 
       if (!full.trim()) throw new Error("Empty response from model");
 
-      const entry: HistoryEntry = { prompt: full.trim(), instruction: "Initial generation", timestamp: Date.now() };
-      setHistory([entry]);
-      setCurrentIdx(0);
       setPromptText(full.trim());
       toast.success("Prompt generated");
     } catch (e) {
@@ -358,14 +359,16 @@ export default function Home() {
     } finally {
       setIsDescribing(false);
       setStreamingText((prev) => prev || "");
-      // keep streamingText briefly then clear? We'll clear after setting history so display switches
+      // keep streamingText briefly then clear so the display switches cleanly
       setTimeout(() => setStreamingText(""), 100);
     }
   };
 
   const handleRefine = async (instruction: string) => {
-    // Refine operates only on the current prompt text — the image is never
-    // resent (the /api/refine route takes prompt + instruction only).
+    // Refine operates only on the current Generated Prompt text — the image is
+    // never resent (the /api/refine route takes prompt + instruction only).
+    // The Generated Prompt box is left untouched; the result streams into the
+    // dedicated "Refined Prompt" box in the RefineBar.
     const basePrompt = promptText.trim();
     if (!basePrompt) {
       toast.error("Nothing to refine yet — type a prompt above or generate one from an image.");
@@ -376,7 +379,7 @@ export default function Home() {
       return;
     }
     setIsRefining(true);
-    setStreamingText("");
+    setRefinedText("");
 
     try {
       const res = await fetch("/api/refine", {
@@ -405,46 +408,19 @@ export default function Home() {
       let full = "";
       await streamResponse(res, (chunk) => {
         full += chunk;
-        setStreamingText(full);
+        setRefinedText(full);
       });
 
       if (!full.trim()) throw new Error("Empty refinement");
 
-      const entry: HistoryEntry = { prompt: full.trim(), instruction, timestamp: Date.now() };
-      // If we're not at latest, truncate forward history (like undo redo)
-      setHistory((prev) => {
-        const sliced = prev.slice(0, currentIdx + 1);
-        return [...sliced, entry];
-      });
-      setCurrentIdx((prev) => prev + 1);
-      setPromptText(full.trim());
+      setRefinedText(full.trim());
       toast.success("Prompt refined");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       toast.error(msg);
     } finally {
       setIsRefining(false);
-      setTimeout(() => setStreamingText(""), 100);
     }
-  };
-
-  const handleSelectHistory = (idx: number) => {
-    setCurrentIdx(idx);
-    setPromptText(history[idx]?.prompt ?? "");
-    setStreamingText("");
-  };
-
-  const handleUndo = () => {
-    if (currentIdx <= 0) return;
-    const ni = currentIdx - 1;
-    setCurrentIdx(ni);
-    setPromptText(history[ni]?.prompt ?? "");
-  };
-  const handleRedo = () => {
-    if (currentIdx >= history.length - 1) return;
-    const ni = currentIdx + 1;
-    setCurrentIdx(ni);
-    setPromptText(history[ni]?.prompt ?? "");
   };
 
   if (!mounted) {
@@ -492,7 +468,7 @@ export default function Home() {
           <DropZone
             onFileSelect={handleFileSelect}
             previewUrl={previewUrl}
-            onClear={handleClear}
+            onClear={handleRemoveImage}
             fileName={file?.name}
             disabled={isDescribing || isRefining}
           />
@@ -500,11 +476,11 @@ export default function Home() {
           {/* Generate button */}
           {file && (
             <div className="flex gap-2">
-              <Button onClick={handleGenerate} disabled={!canGenerate} className="flex-1 h-11 text-[15px] font-medium" title={history.length > 0 ? "Re-run the image description; this overwrites the current prompt. Use Refine instead to edit it." : undefined}>
+              <Button onClick={handleGenerate} disabled={!canGenerate} className="flex-1 h-11 text-[15px] font-medium" title={promptText ? "Re-run the image description; this overwrites the current prompt. Use Refine instead to edit it." : undefined}>
                 {isDescribing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {isDescribing ? "Generating prompt..." : history.length === 0 ? "Generate prompt" : "Re-describe from image"}
+                {isDescribing ? "Generating prompt..." : !promptText ? "Generate prompt" : "Re-describe from image"}
               </Button>
-              {history.length > 0 && (
+              {promptText && (
                 <Button
                   variant="outline"
                   onClick={handleClear}
@@ -522,14 +498,8 @@ export default function Home() {
           {/* Prompt card */}
           <PromptCard
             prompt={displayPrompt}
-            isStreaming={isDescribing || isRefining}
+            isStreaming={isDescribing}
             onChangePrompt={setPromptText}
-            version={currentIdx + 1}
-            totalVersions={history.length}
-            onUndo={handleUndo}
-            onRedo={handleRedo}
-            canUndo={currentIdx > 0}
-            canRedo={currentIdx < history.length - 1}
           />
 
           {/* Refine */}
@@ -537,29 +507,9 @@ export default function Home() {
             hasPrompt={!!promptText}
             isRefining={isRefining}
             onRefine={handleRefine}
-            history={history}
-            onSelectHistory={handleSelectHistory}
-            currentIndex={currentIdx}
             disabled={isDescribing}
-            result={promptText}
+            result={refinedText}
           />
-
-          {/* Footer hints */}
-          <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800">
-                <ImageIcon className="h-4 w-4 text-zinc-600 dark:text-zinc-400" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">How it works</p>
-                <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                  1. Default is <strong>OpenCode Go</strong> (<code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-xs dark:bg-zinc-800">https://opencode.ai/zen/go/v1</code> — coding models like <code>glm-5.3</code>, <code>kimi-k3</code>). For image describe you need a vision model — add <strong>OpenCode Zen</strong> (<code>https://opencode.ai/zen/v1</code>) via gear → Providers and pick e.g. <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-xs dark:bg-zinc-800">gpt-4o</code> / <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-xs dark:bg-zinc-800">claude-sonnet-4-5</code>).<br />
-                  2. Upload → Generate builds a single-paragraph prompt.<br />
-                  3. Refine iteratively: “make it watercolor”, “add fog”, etc. Edit inline anytime. Copy when ready.
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
       </main>
 

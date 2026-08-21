@@ -225,12 +225,12 @@ export function SettingsDrawer({
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <CardTitle className="text-sm font-semibold truncate">{p.name || "Unnamed"}</CardTitle>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate flex items-center gap-1.5 mt-1">
+                        <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate flex items-center gap-1.5 mt-1">
                           <span className="truncate">{p.baseUrl}</span>
                           <Badge variant="outline" className="text-[10px] shrink-0">
                             openai-compatible
                           </Badge>
-                        </p>
+                        </div>
                         <p className="text-xs text-zinc-400 mt-1 font-mono">
                           Key: {p.apiKey ? "••••••••" + p.apiKey.slice(-4) : "— not set —"}
                         </p>

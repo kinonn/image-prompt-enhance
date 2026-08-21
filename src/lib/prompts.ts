@@ -3,7 +3,7 @@ export const DESCRIBE_SYSTEM_PROMPT = `You are an expert image prompt engineer f
 Your task: Analyze the provided image and generate a single, highly detailed paragraph that could be used as a prompt to recreate the image as accurately as possible.
 
 Include:
-- Main subject(s) and their appearance, pose, action
+- Main subject(s) and their appearance, pose, action, accurate description of frame & bone structure, proportions, movement and stature. For close-up and medium portraits, include details of face shape & bone structure, eye & eyebrows, nose & mid-face, complexion and marks
 - Composition, framing, camera angle, shot type
 - Lighting (quality, direction, color temperature)
 - Color palette and tones
@@ -16,7 +16,7 @@ Include:
 Rules:
 - Return ONLY the prompt paragraph. No preamble, no explanation, no quotes, no bullet points.
 - Make it paste-ready for image generators.
-- Be concise but thorough — aim for 80-180 words.
+- Be thorough — aim for 200-300 words.
 - Use descriptive, vivid language optimized for AI image generation.
 - Do not mention that you are an AI.`;
 
@@ -31,8 +31,7 @@ Task: Produce a REFINED PROMPT that applies the instruction while preserving the
 Rules:
 - Return ONLY the refined prompt paragraph. No preamble, no explanation, no quotes, no bullet points.
 - If the instruction is vague, interpret it creatively but faithfully.
-- If the instruction contradicts the original, prioritize the instruction.
-- Keep the length similar (80-180 words) unless instruction asks for brevity or expansion.`;
+- If the instruction contradicts the original, prioritize the instruction.`;
 
 // Default alias (stable reference for reset) + localStorage persistence
 export const DEFAULT_DESCRIBE_SYSTEM_PROMPT = DESCRIBE_SYSTEM_PROMPT;

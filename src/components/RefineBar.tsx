@@ -1,31 +1,21 @@
 "use client";
 
 import * as React from "react";
-import { Wand2, Loader2, Send, History, Copy, Check } from "lucide-react";
+import { Wand2, Loader2, Send, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-
-interface HistoryEntry {
-  prompt: string;
-  instruction: string;
-  timestamp: number;
-}
 
 interface RefineBarProps {
   hasPrompt: boolean;
   isRefining: boolean;
   onRefine: (instruction: string) => void;
-  history: HistoryEntry[];
-  onSelectHistory: (index: number) => void;
-  currentIndex: number;
   disabled?: boolean;
   result: string;
 }
 
-export function RefineBar({ hasPrompt, isRefining, onRefine, history, onSelectHistory, currentIndex, disabled, result }: RefineBarProps) {
+export function RefineBar({ hasPrompt, isRefining, onRefine, disabled, result }: RefineBarProps) {
   const [instruction, setInstruction] = React.useState("");
   const [copied, setCopied] = React.useState(false);
 
@@ -42,9 +32,9 @@ export function RefineBar({ hasPrompt, isRefining, onRefine, history, onSelectHi
     const trimmed = instruction.trim();
     // Let the parent decide: it refines only on real prompt content and
     // shows a clear message when there is nothing to refine yet.
+    // Keep the instruction text so the user can tweak and re-run it.
     if (!trimmed || isRefining || disabled) return;
     onRefine(trimmed);
-    setInstruction("");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -61,12 +51,6 @@ export function RefineBar({ hasPrompt, isRefining, onRefine, history, onSelectHi
             <Wand2 className="h-3.5 w-3.5" />
           </div>
           <CardTitle className="text-[13px] font-semibold tracking-widest uppercase text-zinc-500 dark:text-zinc-400">Refine Prompt</CardTitle>
-          {history.length > 0 && (
-            <Badge variant="outline" className="ml-auto text-xs font-mono">
-              <History className="h-3 w-3 mr-1" />
-              {history.length} edits
-            </Badge>
-          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -85,8 +69,7 @@ export function RefineBar({ hasPrompt, isRefining, onRefine, history, onSelectHi
             className="resize-none"
           />
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 hidden sm:block">Cmd+Enter to send • Be specific for best results</p>
-            <Button type="submit" disabled={!instruction.trim() || isRefining || disabled} className="ml-auto">
+            <Button type="submit" disabled={!instruction.trim()} className="ml-auto">
               {isRefining ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {isRefining ? "Refining..." : "Refine"}
             </Button>
@@ -113,30 +96,12 @@ export function RefineBar({ hasPrompt, isRefining, onRefine, history, onSelectHi
               The refined prompt will appear here after you refine.
             </div>
           )}
+          {result && (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              {result.split(/\s+/).filter(Boolean).length} words • {result.length} chars
+            </p>
+          )}
         </div>
-
-        {history.length > 0 && (
-          <div className="space-y-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">History</p>
-            <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-thin">
-              {history.map((h, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => onSelectHistory(idx)}
-                  className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                    idx === currentIndex
-                      ? "bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-50 dark:text-zinc-900 dark:border-zinc-50"
-                      : "bg-white hover:bg-zinc-50 border-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:border-zinc-800"
-                  }`}
-                  title={h.instruction}
-                >
-                  {idx === 0 ? "Original" : `Edit ${idx}`}
-                  <span className="ml-1.5 opacity-60 truncate max-w-[120px] inline-block align-bottom">{h.instruction.slice(0, 28)}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );

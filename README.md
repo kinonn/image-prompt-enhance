@@ -4,8 +4,8 @@ Simple, elegant Next.js app that turns an uploaded image into a detailed prompt 
 
 - **Upload image** → drag-drop / click / paste (PNG/JPEG/WebP, 10MB max, auto-resized to 1024px in-browser, never stored)
 - **Generate prompt** → single-paragraph, paste-ready for SD/Midjourney/DALL·E via vision-capable LLM
-- **Refine** → chat-like iterative edits (“more cinematic, add fog…”) with history + undo/redo + inline edit + copy
-- **Providers** → OpenCode Go preset (`https://opencode.ai/zen/go/v1`) by default (see https://opencode.ai/docs/go); add any OpenAI-compatible provider (OpenCode Zen `https://opencode.ai/zen/v1`, OpenRouter `https://openrouter.ai/api/v1`, Ollama `http://localhost:11434/v1`, LM Studio…) via gear → Providers. Keys in `localStorage`, proxied through Next.js API routes (no CORS, no exposure to git)
+- **Refine** → chat-like iterative edits (“more cinematic, add fog…”); the result streams into a dedicated **Refined Prompt** box while the Generated Prompt stays untouched, with copy + inline edit
+- **Providers** → OpenCode Go (`https://opencode.ai/zen/go/v1`, see https://opencode.ai/docs/go) and Ollama (`http://localhost:11434/v1`) presets by default; add any OpenAI-compatible provider (OpenCode Zen `https://opencode.ai/zen/v1`, OpenRouter `https://openrouter.ai/api/v1`, LM Studio…) via gear → Providers. Keys in `localStorage`, proxied through Next.js API routes (no CORS, no exposure to git)
 - **Streaming** → token-by-token
 - **Theme** → minimal light/dark, responsive, Tailwind + shadcn/ui
 
@@ -27,7 +27,7 @@ npm run dev
 
 ## Configuration
 
-- **Providers** stored in `localStorage:image-prompt-providers`. Default: `OpenCode Go` (`https://opencode.ai/zen/go/v1`, docs https://opencode.ai/docs/go, models `https://opencode.ai/zen/go/v1/models`). Zen alternative: `https://opencode.ai/zen/v1`.
+- **Providers** stored in `localStorage:image-prompt-providers`. Defaults: `OpenCode Go` (`https://opencode.ai/zen/go/v1`, docs https://opencode.ai/docs/go, models `https://opencode.ai/zen/go/v1/models`) and `Ollama` (`http://localhost:11434/v1`, no key needed). Zen alternative: `https://opencode.ai/zen/v1`.
 - **Add generic provider**: Name, Base URL (must be OpenAI-compatible `/v1`), API Key. `Test` pings `POST /api/models`. Supports OpenRouter (`https://openrouter.ai/api/v1`), Ollama local, etc.
 - **Models**: fetched via `POST /api/models {baseUrl, apiKey}` proxy → `{models:[{id,name}]}`. Selection persisted in `localStorage`.
 - **Ephemeral images**: resized via Canvas to JPEG 1024px q0.8, base64 in memory only, discarded on clear/reload. No server storage.
@@ -42,7 +42,7 @@ All LLM calls go through server to avoid CORS and keep keys off the client netwo
 
 ## Security / SSRF
 
-The server-side proxy validates every provider `baseUrl` before fetching it (`src/lib/ssrf.ts`). Provider URLs that resolve to **private, link-local, CGNAT, multicast, or reserved** addresses are refused — this blocks using the server as a proxy to internal/cloud-metadata endpoints (`169.254.169.254`). **Loopback (`localhost`) stays allowed** so local Ollama / LM Studio providers keep working. To permit additional internal hosts, set the comma-separated `ALLOWED_PROVIDER_HOSTS` env var (e.g. `192.168.1.50`, `my-local-llm.lan`).
+The server-side proxy validates every provider `baseUrl` before fetching it (`src/lib/ssrf.ts`). Private/local network addresses (RFC1918, CGNAT, link-local, ULA) and `.local` (mDNS/Bonjour) hostnames are allowed so local LLM providers (Ollama, LM Studio, LAN devices like `mac-mini.local` or `192.168.1.50`) work. Only the cloud metadata endpoint (`169.254.169.254`), loopback, multicast, reserved, and unspecified addresses are refused. To permit additional hosts, set the comma-separated `ALLOWED_PROVIDER_HOSTS` env var.
 
 Non-streaming providers that ignore `stream: true` are handled server-side: the single JSON response is unwrapped to plain text (`src/lib/extract.ts`) instead of being dropped by the SSE parser.
 
@@ -63,7 +63,7 @@ Standalone output (`next.config.ts: output:"standalone"`). No env vars required.
 ```
 src/app/page.tsx        # orchestration (upload → generate → refine + provider/model selectors)
 src/app/api/{models,describe,refine}/route.ts
-src/lib/{providers, prompts, image, utils}.ts
+src/lib/{providers, prompts, image, llm, extract, ssrf, utils}.ts
 src/components/{DropZone, PromptCard, RefineBar, SettingsDrawer, ui/*, theme-provider}
 ```
 
@@ -76,7 +76,8 @@ src/components/{DropZone, PromptCard, RefineBar, SettingsDrawer, ui/*, theme-pro
 
 - Choose vision-capable models; non-vision models will error (shown in toast)
 - Paste images with Ctrl+V anywhere after focusing page
-- Copy + inline edit + history navigation (pill timeline + undo/redo)
+- The **Remove** button under the image only removes the image — generated and refined prompts are kept
+- Refine applies to the text in the Generated Prompt box; the result appears in the Refined Prompt box (copy it into the Generated Prompt box to chain further edits)
 
 ## License
 

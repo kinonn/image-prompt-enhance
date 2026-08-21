@@ -5,32 +5,15 @@ import { Copy, Check, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
 interface PromptCardProps {
   prompt: string;
   isStreaming: boolean;
   onChangePrompt: (newPrompt: string) => void;
-  version: number;
-  totalVersions: number;
-  onUndo?: () => void;
-  onRedo?: () => void;
-  canUndo?: boolean;
-  canRedo?: boolean;
 }
 
-export function PromptCard({
-  prompt,
-  isStreaming,
-  onChangePrompt,
-  version,
-  totalVersions,
-  onUndo,
-  onRedo,
-  canUndo,
-  canRedo,
-}: PromptCardProps) {
+export function PromptCard({ prompt, isStreaming, onChangePrompt }: PromptCardProps) {
   const [copied, setCopied] = React.useState(false);
 
   const handleCopy = async () => {
@@ -49,28 +32,11 @@ export function PromptCard({
           </div>
           <CardTitle className="text-[13px] font-semibold tracking-widest uppercase text-zinc-500 dark:text-zinc-400">Generated Prompt</CardTitle>
           {isStreaming && <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400" />}
-          {!isStreaming && totalVersions > 0 && prompt && (
-            <Badge variant="secondary" className="text-[11px] font-mono">
-              v{version}/{totalVersions}
-            </Badge>
-          )}
         </div>
-        <div className="flex items-center gap-1.5">
-          {canUndo && (
-            <Button variant="ghost" size="sm" onClick={onUndo} className="h-8 px-2.5 text-xs">
-              Undo
-            </Button>
-          )}
-          {canRedo && (
-            <Button variant="ghost" size="sm" onClick={onRedo} className="h-8 px-2.5 text-xs">
-              Redo
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={handleCopy} disabled={!prompt || isStreaming} className="h-8">
-            {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
-            {copied ? "Copied" : "Copy"}
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" onClick={handleCopy} disabled={!prompt || isStreaming} className="h-8">
+          {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? "Copied" : "Copy"}
+        </Button>
       </CardHeader>
       <CardContent className="space-y-2">
         {isStreaming ? (

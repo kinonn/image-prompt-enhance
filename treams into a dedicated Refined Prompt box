@@ -1,0 +1,49 @@
+[1mdiff --git a/src/components/ui/badge.tsx b/src/components/ui/badge.tsx[m
+[1mindex 7c638db..edfa396 100644[m
+[1m--- a/src/components/ui/badge.tsx[m
+[1m+++ b/src/components/ui/badge.tsx[m
+[36m@@ -18,10 +18,10 @@[m [mconst badgeVariants = cva([m
+   }[m
+ );[m
+ [m
+[31m-export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof badgeVariants> {}[m
+[32m+[m[32mexport interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement>, VariantProps<typeof badgeVariants> {}[m
+ [m
+ function Badge({ className, variant, ...props }: BadgeProps) {[m
+[31m-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />;[m
+[32m+[m[32m  return <span className={cn(badgeVariants({ variant }), className)} {...props} />;[m
+ }[m
+ [m
+ export { Badge, badgeVariants };[m
+[1mdiff --git a/src/lib/prompts.ts b/src/lib/prompts.ts[m
+[1mindex 20f0aca..9776844 100644[m
+[1m--- a/src/lib/prompts.ts[m
+[1m+++ b/src/lib/prompts.ts[m
+[36m@@ -3,7 +3,7 @@[m [mexport const DESCRIBE_SYSTEM_PROMPT = `You are an expert image prompt engineer f[m
+ Your task: Analyze the provided image and generate a single, highly detailed paragraph that could be used as a prompt to recreate the image as accurately as possible.[m
+ [m
+ Include:[m
+[31m-- Main subject(s) and their appearance, pose, action[m
+[32m+[m[32m- Main subject(s) and their appearance, pose, action, accurate description of frame & bone structure, proportions, movement and stature. For close-up and medium portraits, include details of face shape & bone structure, eye & eyebrows, nose & mid-face, complexion and marks[m
+ - Composition, framing, camera angle, shot type[m
+ - Lighting (quality, direction, color temperature)[m
+ - Color palette and tones[m
+[36m@@ -16,7 +16,7 @@[m [mInclude:[m
+ Rules:[m
+ - Return ONLY the prompt paragraph. No preamble, no explanation, no quotes, no bullet points.[m
+ - Make it paste-ready for image generators.[m
+[31m-- Be concise but thorough — aim for 80-180 words.[m
+[32m+[m[32m- Be thorough — aim for 200-300 words.[m
+ - Use descriptive, vivid language optimized for AI image generation.[m
+ - Do not mention that you are an AI.`;[m
+ [m
+[36m@@ -31,8 +31,7 @@[m [mTask: Produce a REFINED PROMPT that applies the instruction while preserving the[m
+ Rules:[m
+ - Return ONLY the refined prompt paragraph. No preamble, no explanation, no quotes, no bullet points.[m
+ - If the instruction is vague, interpret it creatively but faithfully.[m
+[31m-- If the instruction contradicts the original, prioritize the instruction.[m
+[31m-- Keep the length similar (80-180 words) unless instruction asks for brevity or expansion.`;[m
+[32m+[m[32m- If the instruction contradicts the original, prioritize the instruction.`;[m
+ [m
+ // Default alias (stable reference for reset) + localStorage persistence[m
+ export const DEFAULT_DESCRIBE_SYSTEM_PROMPT = DESCRIBE_SYSTEM_PROMPT;[m
