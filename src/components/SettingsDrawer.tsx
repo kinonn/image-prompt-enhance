@@ -264,7 +264,7 @@ export function SettingsDrawer({
 
             <div className="rounded-xl border border-zinc-200 p-4 space-y-3 dark:border-zinc-800">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium">Image describe prompt</p>
+                <p className="text-sm font-medium">System prompt</p>
                 <Button
                   variant="ghost"
                   size="sm"
