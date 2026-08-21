@@ -157,11 +157,15 @@ export default function Home() {
   const [isRefining, setIsRefining] = React.useState(false);
   const [streamingText, setStreamingText] = React.useState("");
 
+  // Single source of truth for the Generated Prompt box. It starts empty and is
+  // directly editable (typing works without uploading an image). Generation and
+  // refinement commit their results into it; history keeps snapshots for undo/redo.
+  const [promptText, setPromptText] = React.useState("");
+
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
 
-  const currentPrompt = currentIdx >= 0 ? history[currentIdx]?.prompt : "";
-  const displayPrompt = isDescribing || isRefining ? streamingText : currentPrompt;
+  const displayPrompt = isDescribing || isRefining ? streamingText : promptText;
 
   // init
   React.useEffect(() => {
@@ -280,6 +284,7 @@ export default function Home() {
     setHistory([]);
     setCurrentIdx(-1);
     setStreamingText("");
+    setPromptText("");
   };
 
   const handleClear = () => {
@@ -290,6 +295,7 @@ export default function Home() {
     setHistory([]);
     setCurrentIdx(-1);
     setStreamingText("");
+    setPromptText("");
   };
 
   const handleGenerate = async () => {
@@ -341,6 +347,7 @@ export default function Home() {
       const entry: HistoryEntry = { prompt: full.trim(), instruction: "Initial generation", timestamp: Date.now() };
       setHistory([entry]);
       setCurrentIdx(0);
+      setPromptText(full.trim());
       toast.success("Prompt generated");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -357,15 +364,15 @@ export default function Home() {
   const handleRefine = async (instruction: string) => {
     // Refine operates only on the current prompt text — the image is never
     // resent (the /api/refine route takes prompt + instruction only).
-    if (currentIdx < 0 || !history[currentIdx]?.prompt?.trim()) {
-      toast.error("Nothing to refine yet — generate a prompt first.");
+    const basePrompt = promptText.trim();
+    if (!basePrompt) {
+      toast.error("Nothing to refine yet — type a prompt above or generate one from an image.");
       return;
     }
     if (!selectedProvider || !selectedModel) {
       toast.error("Select provider/model");
       return;
     }
-    const basePrompt = history[currentIdx].prompt;
     setIsRefining(true);
     setStreamingText("");
 
@@ -408,6 +415,7 @@ export default function Home() {
         return [...sliced, entry];
       });
       setCurrentIdx((prev) => prev + 1);
+      setPromptText(full.trim());
       toast.success("Prompt refined");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -418,25 +426,23 @@ export default function Home() {
     }
   };
 
-  const handleManualEdit = (newPrompt: string) => {
-    const entry: HistoryEntry = { prompt: newPrompt, instruction: "Manual edit", timestamp: Date.now() };
-    setHistory((prev) => {
-      const sliced = prev.slice(0, currentIdx + 1);
-      return [...sliced, entry];
-    });
-    setCurrentIdx((prev) => prev + 1);
-  };
-
   const handleSelectHistory = (idx: number) => {
     setCurrentIdx(idx);
+    setPromptText(history[idx]?.prompt ?? "");
     setStreamingText("");
   };
 
   const handleUndo = () => {
-    if (currentIdx > 0) setCurrentIdx((p) => p - 1);
+    if (currentIdx <= 0) return;
+    const ni = currentIdx - 1;
+    setCurrentIdx(ni);
+    setPromptText(history[ni]?.prompt ?? "");
   };
   const handleRedo = () => {
-    if (currentIdx < history.length - 1) setCurrentIdx((p) => p + 1);
+    if (currentIdx >= history.length - 1) return;
+    const ni = currentIdx + 1;
+    setCurrentIdx(ni);
+    setPromptText(history[ni]?.prompt ?? "");
   };
 
   if (!mounted) {
@@ -515,7 +521,7 @@ export default function Home() {
           <PromptCard
             prompt={displayPrompt}
             isStreaming={isDescribing || isRefining}
-            onChangePrompt={handleManualEdit}
+            onChangePrompt={setPromptText}
             version={currentIdx + 1}
             totalVersions={history.length}
             onUndo={handleUndo}
@@ -526,14 +532,14 @@ export default function Home() {
 
           {/* Refine */}
           <RefineBar
-            hasPrompt={!!currentPrompt}
+            hasPrompt={!!promptText}
             isRefining={isRefining}
             onRefine={handleRefine}
             history={history}
             onSelectHistory={handleSelectHistory}
             currentIndex={currentIdx}
             disabled={isDescribing}
-            result={currentPrompt}
+            result={promptText}
           />
 
           {/* Footer hints */}
