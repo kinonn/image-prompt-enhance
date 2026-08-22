@@ -20,7 +20,6 @@ interface SettingsDrawerProps {
   onSaveProviders: (providers: Provider[]) => void;
   modelsCache: Record<string, Model[]>;
   onRefreshModels: (provider: Provider) => Promise<void>;
-  loadingModelsFor?: string | null;
 }
 
 export function SettingsDrawer({
@@ -30,7 +29,6 @@ export function SettingsDrawer({
   onSaveProviders,
   modelsCache,
   onRefreshModels,
-  loadingModelsFor,
 }: SettingsDrawerProps) {
   const [editing, setEditing] = React.useState<Provider | null>(null);
   const [isNew, setIsNew] = React.useState(false);

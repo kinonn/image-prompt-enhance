@@ -48,6 +48,11 @@ Rules:
 - If the instruction is vague, interpret it creatively but faithfully.
 - If the instruction contradicts the original, prioritize the instruction.`;
 
+export const CHAT_SYSTEM_PROMPT =
+  "You are a helpful, concise assistant. Respond clearly and use markdown when it helps (lists, headings, code blocks). If the user shares an image, describe what you see and answer their question about it.";
+
+export const DEFAULT_CHAT_SYSTEM_PROMPT = CHAT_SYSTEM_PROMPT;
+
 // Default alias (stable reference for reset) + localStorage persistence
 export const DEFAULT_DESCRIBE_SYSTEM_PROMPT = DESCRIBE_SYSTEM_PROMPT;
 export const DESCRIBE_PROMPT_STORAGE_KEY = "image-prompt-describe-prompt";
