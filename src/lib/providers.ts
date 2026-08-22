@@ -33,6 +33,8 @@ export const DEFAULT_PROVIDERS: Provider[] = [
 const STORAGE_KEY = "image-prompt-providers";
 const SELECTED_PROVIDER_KEY = "image-prompt-selected-provider";
 const SELECTED_MODEL_KEY = "image-prompt-selected-model";
+const SELECTED_REFINE_PROVIDER_KEY = "image-prompt-selected-refine-provider";
+const SELECTED_REFINE_MODEL_KEY = "image-prompt-selected-refine-model";
 
 export function loadProviders(): Provider[] {
   if (typeof window === "undefined") return DEFAULT_PROVIDERS;
@@ -88,6 +90,24 @@ export function getSelectedModelId(): string | null {
 
 export function setSelectedModelId(id: string) {
   localStorage.setItem(SELECTED_MODEL_KEY, id);
+}
+
+export function getSelectedRefineProviderId(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(SELECTED_REFINE_PROVIDER_KEY);
+}
+
+export function setSelectedRefineProviderId(id: string) {
+  localStorage.setItem(SELECTED_REFINE_PROVIDER_KEY, id);
+}
+
+export function getSelectedRefineModelId(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(SELECTED_REFINE_MODEL_KEY);
+}
+
+export function setSelectedRefineModelId(id: string) {
+  localStorage.setItem(SELECTED_REFINE_MODEL_KEY, id);
 }
 
 export function getProviderById(providers: Provider[], id: string): Provider | undefined {

@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Upload, Image as ImageIcon, ClipboardPaste, X } from "lucide-react";
+import { Upload, Image as ImageIcon, ClipboardPaste, X, ChevronDown, Settings, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { validateFile } from "@/lib/image";
+import type { Provider, Model } from "@/lib/providers";
 import { toast } from "sonner";
 
 interface DropZoneProps {
@@ -13,9 +14,34 @@ interface DropZoneProps {
   onClear: () => void;
   fileName?: string;
   disabled?: boolean;
+  providers: Provider[];
+  modelsCache: Record<string, Model[]>;
+  selectedProviderId: string;
+  selectedModel: string;
+  onSelectProvider: (id: string) => void;
+  onSelectModel: (id: string) => void;
+  loadingModelsFor?: string | null;
+  onOpenSettings?: () => void;
 }
 
-export function DropZone({ onFileSelect, previewUrl, onClear, fileName, disabled }: DropZoneProps) {
+export function DropZone({
+  onFileSelect,
+  previewUrl,
+  onClear,
+  fileName,
+  disabled,
+  providers,
+  modelsCache,
+  selectedProviderId,
+  selectedModel,
+  onSelectProvider,
+  onSelectModel,
+  loadingModelsFor,
+  onOpenSettings,
+}: DropZoneProps) {
+  const selectedProvider = providers.find((p) => p.id === selectedProviderId);
+  const models = modelsCache[selectedProviderId] || [];
+  const isLoadingModels = loadingModelsFor === selectedProviderId;
   const [isDragOver, setIsDragOver] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
@@ -61,18 +87,79 @@ export function DropZone({ onFileSelect, previewUrl, onClear, fileName, disabled
     return () => document.removeEventListener("paste", onPaste);
   }, [onPaste]);
 
+  // Subtle pill toolbar — same unobtrusive style as RefineBar / Gemini / ChatGPT
+  const ControlsBar = (
+    <div
+      className="flex items-center gap-1.5 border-t border-zinc-100 bg-zinc-50/70 px-2 py-1.5 dark:border-zinc-800 dark:bg-zinc-900/50"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="relative shrink-0">
+        <select
+          aria-label="Image to prompt provider"
+          value={selectedProviderId}
+          onChange={(e) => onSelectProvider(e.target.value)}
+          disabled={disabled}
+          className="h-7 appearance-none rounded-full border border-zinc-200 bg-white pl-2.5 pr-6 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          {providers.length === 0 && <option value="">No providers</option>}
+          {providers.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-zinc-500" />
+      </div>
+      <div className="relative min-w-0 max-w-[180px] flex-1 sm:max-w-[220px]">
+        <select
+          aria-label="Image to prompt model"
+          value={selectedModel}
+          onChange={(e) => onSelectModel(e.target.value)}
+          disabled={!selectedProvider || disabled || (models.length === 0 && !isLoadingModels)}
+          title={selectedModel || undefined}
+          className="h-7 w-full appearance-none truncate rounded-full border border-zinc-200 bg-white pl-2.5 pr-6 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          {isLoadingModels && <option value={selectedModel}>{selectedModel ? `${selectedModel.split("/").pop()} — loading…` : "Loading…"}</option>}
+          {!isLoadingModels && models.length === 0 && (
+            <option value="">{selectedProvider ? "No models — open settings" : "Select provider"}</option>
+          )}
+          {!isLoadingModels &&
+            models.map((m) => (
+              <option key={m.id} value={m.id} title={m.id}>
+                {m.name || m.id}
+              </option>
+            ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 shrink-0 -translate-y-1/2 text-zinc-500" />
+      </div>
+      {isLoadingModels && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-zinc-400" />}
+      {onOpenSettings && (
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+          title="Manage providers & models"
+          aria-label="Manage providers"
+        >
+          <Settings className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
+
   if (previewUrl) {
     return (
-      <div className="relative overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         {/* eslint-disable-next-line @next/next/no-img-element -- object URL preview, not optimizable */}
         <img src={previewUrl} alt="Preview" className="max-h-[420px] w-full object-contain bg-zinc-100 dark:bg-zinc-900" />
-        <div className="flex items-center justify-between gap-3 p-3 border-t border-zinc-200 bg-white dark:bg-zinc-900 dark:border-zinc-800">
-          <span className="text-sm text-zinc-600 dark:text-zinc-400 truncate flex-1">{fileName}</span>
+        <div className="flex items-center justify-between gap-3 border-t border-zinc-200 bg-white px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900">
+          <span className="truncate text-sm text-zinc-600 dark:text-zinc-400 flex-1">{fileName}</span>
           <Button variant="outline" size="sm" onClick={onClear} disabled={disabled}>
             <X className="h-4 w-4" />
             Remove
           </Button>
         </div>
+        {ControlsBar}
       </div>
     );
   }
@@ -117,6 +204,9 @@ export function DropZone({ onFileSelect, previewUrl, onClear, fileName, disabled
         <span className="flex items-center gap-1.5">
           <ClipboardPaste className="h-3.5 w-3.5" /> Clipboard supported
         </span>
+      </div>
+      <div className="mt-6 w-full pt-4 border-t border-zinc-100 dark:border-zinc-800 text-left" onClick={(e) => e.stopPropagation()}>
+        {ControlsBar}
       </div>
     </div>
   );

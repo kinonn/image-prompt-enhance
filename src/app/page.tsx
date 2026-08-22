@@ -9,7 +9,19 @@ import { PromptCard } from "@/components/PromptCard";
 import { RefineBar } from "@/components/RefineBar";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
 import { resizeImage } from "@/lib/image";
-import { loadProviders, saveProviders, getSelectedProviderId, setSelectedProviderId, getSelectedModelId, setSelectedModelId, getProviderById } from "@/lib/providers";
+import {
+  loadProviders,
+  saveProviders,
+  getSelectedProviderId,
+  setSelectedProviderId,
+  getSelectedModelId,
+  setSelectedModelId,
+  getSelectedRefineProviderId,
+  setSelectedRefineProviderId,
+  getSelectedRefineModelId,
+  setSelectedRefineModelId,
+  getProviderById,
+} from "@/lib/providers";
 import type { Provider, Model } from "@/lib/providers";
 import { loadDescribePrompt } from "@/lib/prompts";
 import { toast } from "sonner";
@@ -136,8 +148,12 @@ async function streamResponse(res: Response, onText: (t: string) => void): Promi
 export default function Home() {
   const { theme, setTheme } = useTheme();
   const [providers, setProviders] = React.useState<Provider[]>([]);
+  // Generated Prompt (describe) — its own provider/model
   const [selectedProviderId, setSelectedProviderIdState] = React.useState<string>("");
   const [selectedModel, setSelectedModel] = React.useState<string>("");
+  // Refined Prompt — independent provider/model so users can mix models
+  const [refineProviderId, setRefineProviderIdState] = React.useState<string>("");
+  const [refineModel, setRefineModel] = React.useState<string>("");
   const [modelsCache, setModelsCache] = React.useState<Record<string, Model[]>>({});
   const [loadingModelsFor, setLoadingModelsFor] = React.useState<string | null>(null);
 
@@ -175,6 +191,11 @@ export default function Home() {
     setSelectedProviderIdState(selP);
     const selM = getSelectedModelId() || "";
     setSelectedModel(selM);
+    // Refine defaults to the generate selection until the user picks its own
+    const selRP = getSelectedRefineProviderId() || selP;
+    setRefineProviderIdState(selRP);
+    const selRM = getSelectedRefineModelId() || "";
+    setRefineModel(selRM);
   }, []);
 
   // Persist providers
@@ -189,9 +210,18 @@ export default function Home() {
       setSelectedModel("");
       setSelectedModelId("");
     }
+    // same for refine when its provider was removed
+    if (!next.find((p) => p.id === refineProviderId)) {
+      const fallback = next.find((p) => p.id === selectedProviderId)?.id || next[0]?.id || "";
+      setRefineProviderIdState(fallback);
+      setSelectedRefineProviderId(fallback);
+      setRefineModel("");
+      setSelectedRefineModelId("");
+    }
   };
 
   const selectedProvider = getProviderById(providers, selectedProviderId);
+  const refineProvider = getProviderById(providers, refineProviderId);
 
   // Fetch models when provider changes
   const fetchModels = React.useCallback(async (provider: Provider) => {
@@ -206,61 +236,65 @@ export default function Home() {
       if (!res.ok) throw new Error(data.error || "Failed to fetch models");
       const models: Model[] = data.models || [];
       setModelsCache((prev) => ({ ...prev, [provider.id]: models }));
-      // auto-select first model if none selected or selected not in list
-      if (models.length > 0) {
-        const current = getSelectedModelId();
-        const exists = current && models.find((m) => m.id === current);
-        if (!current || !exists) {
-          const pick = models.find((m) => /vision|gpt-4o|claude|gemini|vision/i.test(m.id))?.id || models[0].id;
-          // only auto-set if we're on this provider and no manual selection yet
-          if (provider.id === (getSelectedProviderId() || providers[0]?.id)) {
-            // don't override if user already has something? check current state
-            // Use callback to avoid stale
-            setSelectedModel((prev) => (prev && models.find((m) => m.id === prev) ? prev : pick));
-            setSelectedModelId(pick);
-          }
-        }
-      }
+      // Selection fixup happens in the validation effect below so it works for
+      // both the generate and refine selections.
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       toast.error(`Failed to fetch models: ${msg}`);
     } finally {
       setLoadingModelsFor(null);
     }
-  }, [providers]);
+  }, []);
 
   React.useEffect(() => {
-    if (selectedProvider) {
-      // auto fetch if not cached
-      if (!modelsCache[selectedProvider.id]) {
-        fetchModels(selectedProvider);
-      }
+    if (selectedProvider && !modelsCache[selectedProvider.id]) {
+      fetchModels(selectedProvider);
+    }
+    if (refineProvider && !modelsCache[refineProvider.id]) {
+      fetchModels(refineProvider);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProviderId]);
+  }, [selectedProviderId, refineProviderId]);
 
   // Keep localStorage synced on selection changes
   const onSelectProvider = (id: string) => {
     setSelectedProviderIdState(id);
     setSelectedProviderId(id);
-    const cached = modelsCache[id];
-    if (cached?.length) {
-      const found = cached.find((m) => m.id === selectedModel);
-      if (!found) {
-        const pick = cached[0].id;
-        setSelectedModel(pick);
-        setSelectedModelId(pick);
-      }
-    } else {
-      // will fetch, keep old or clear?
-      setSelectedModel("");
-    }
+    if (!modelsCache[id]?.length) setSelectedModel("");
   };
 
   const onSelectModel = (id: string) => {
     setSelectedModel(id);
     setSelectedModelId(id);
   };
+
+  const onSelectRefineProvider = (id: string) => {
+    setRefineProviderIdState(id);
+    setSelectedRefineProviderId(id);
+    if (!modelsCache[id]?.length) setRefineModel("");
+  };
+
+  const onSelectRefineModel = (id: string) => {
+    setRefineModel(id);
+    setSelectedRefineModelId(id);
+  };
+
+  // Keep each selection valid for its provider's cached models; auto-pick a
+  // default when empty or stale (vision-capable preferred for generate).
+  React.useEffect(() => {
+    const describeModels = modelsCache[selectedProviderId];
+    if (describeModels?.length && !describeModels.some((m) => m.id === selectedModel)) {
+      const pick = describeModels.find((m) => /vision|gpt-4o|claude|gemini/i.test(m.id))?.id || describeModels[0].id;
+      setSelectedModel(pick);
+      setSelectedModelId(pick);
+    }
+    const refineModels = modelsCache[refineProviderId];
+    if (refineModels?.length && !refineModels.some((m) => m.id === refineModel)) {
+      const pick = refineModels.find((m) => /claude|gpt-4|gemini|deepseek|qwen/i.test(m.id))?.id || refineModels[0].id;
+      setRefineModel(pick);
+      setSelectedRefineModelId(pick);
+    }
+  }, [modelsCache, selectedProviderId, selectedModel, refineProviderId, refineModel]);
 
   // File handling
   const handleFileSelect = async (f: File) => {
@@ -306,7 +340,7 @@ export default function Home() {
 
   const handleGenerate = async () => {
     if (!file || !imageBase64 || !selectedProvider || !selectedModel) {
-      toast.error("Upload an image and select provider/model first");
+      toast.error("Upload an image and select a generate provider/model in Settings first");
       return;
     }
     if (!selectedProvider.apiKey && !selectedProvider.baseUrl.includes("localhost") && !selectedProvider.baseUrl.includes("127.0.0.1")) {
@@ -374,8 +408,8 @@ export default function Home() {
       toast.error("Nothing to refine yet — type a prompt above or generate one from an image.");
       return;
     }
-    if (!selectedProvider || !selectedModel) {
-      toast.error("Select provider/model");
+    if (!refineProvider || !refineModel) {
+      toast.error("Select a refine provider/model in Settings");
       return;
     }
     setIsRefining(true);
@@ -388,8 +422,8 @@ export default function Home() {
         body: JSON.stringify({
           prompt: basePrompt,
           instruction,
-          provider: { baseUrl: selectedProvider.baseUrl, apiKey: selectedProvider.apiKey },
-          model: selectedModel,
+          provider: { baseUrl: refineProvider.baseUrl, apiKey: refineProvider.apiKey },
+          model: refineModel,
         }),
       });
 
@@ -464,13 +498,21 @@ export default function Home() {
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
         <div className="space-y-6">
-          {/* Drop zone */}
+          {/* Drop zone — Image to Prompt model picker lives inside it */}
           <DropZone
             onFileSelect={handleFileSelect}
             previewUrl={previewUrl}
             onClear={handleRemoveImage}
             fileName={file?.name}
             disabled={isDescribing || isRefining}
+            providers={providers}
+            modelsCache={modelsCache}
+            selectedProviderId={selectedProviderId}
+            selectedModel={selectedModel}
+            onSelectProvider={onSelectProvider}
+            onSelectModel={onSelectModel}
+            loadingModelsFor={loadingModelsFor}
+            onOpenSettings={() => setSettingsOpen(true)}
           />
 
           {/* Generate button */}
@@ -509,6 +551,14 @@ export default function Home() {
             onRefine={handleRefine}
             disabled={isDescribing}
             result={refinedText}
+            providers={providers}
+            modelsCache={modelsCache}
+            refineProviderId={refineProviderId}
+            refineModel={refineModel}
+            onSelectRefineProvider={onSelectRefineProvider}
+            onSelectRefineModel={onSelectRefineModel}
+            onOpenSettings={() => setSettingsOpen(true)}
+            loadingModelsFor={loadingModelsFor}
           />
         </div>
       </main>
@@ -529,10 +579,6 @@ export default function Home() {
         modelsCache={modelsCache}
         onRefreshModels={fetchModels}
         loadingModelsFor={loadingModelsFor}
-        selectedProviderId={selectedProviderId}
-        onSelectProvider={onSelectProvider}
-        selectedModel={selectedModel}
-        onSelectModel={onSelectModel}
       />
     </div>
   );
