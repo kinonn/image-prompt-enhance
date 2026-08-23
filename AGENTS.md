@@ -27,6 +27,7 @@ Next.js 16 (App Router, TypeScript) app that turns an uploaded image into a deta
 - **Provider keys live in `localStorage`** (`image-prompt-providers`), never committed. Per-task provider/model selection is persisted under separate keys (generate / refine / chat).
 - **State across routes** is kept in memory via `RetainedStateProvider` (`src/components/retained-state.tsx`) — cleared on refresh, not persisted.
 - **Images are ephemeral**: resized in-browser (Canvas → JPEG 1024px q0.8), base64 in memory only, never stored server-side.
+- **Optional Google OAuth** (`src/auth.ts`, NextAuth v5): when signed in, settings + app state are preserved in a server-side in-memory store (`src/lib/server-store.ts`, keyed by user id, exposed via `GET/PUT /api/state`) — survives refresh, lost on restart, single-instance only. Server is source of truth while logged in; localStorage is the anonymous fallback. Auth is optional — the login UI is hidden unless `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` are set.
 
 ## Conventions
 

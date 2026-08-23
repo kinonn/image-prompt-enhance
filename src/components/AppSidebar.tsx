@@ -3,10 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PanelLeftClose, PanelLeftOpen, Moon, Sun, Settings } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, Moon, Sun, Settings, LogIn, LogOut } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS, NAV_SETTINGS_ITEM } from "@/lib/nav";
+import { useAuth } from "@/components/auth-context";
 
 const STORAGE_KEY = "sidebar-collapsed";
 
@@ -18,6 +19,7 @@ interface AppSidebarProps {
 export function AppSidebar({ collapsed, setCollapsed }: AppSidebarProps) {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
+  const { user, status, enabled, signIn, signOut } = useAuth();
   const [mounted, setMounted] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
@@ -118,6 +120,54 @@ export function AppSidebar({ collapsed, setCollapsed }: AppSidebarProps) {
           )}
           {!collapsed && <span>Theme</span>}
         </button>
+
+        {/* Auth — only shown when Google OAuth is configured */}
+        {enabled && (
+          <div className="border-t border-zinc-200 pt-2 dark:border-zinc-800">
+            {status === "loading" ? null : user ? (
+              <div className="flex items-center gap-2 px-2 py-1.5">
+                {user.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={user.image} alt="" className="h-7 w-7 shrink-0 rounded-full" />
+                ) : (
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-xs font-semibold dark:bg-zinc-800">
+                    {(user.name || user.email || "?").slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+                {!collapsed && (
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-medium">{user.name || "Signed in"}</p>
+                    <p className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">{user.email}</p>
+                  </div>
+                )}
+                {!collapsed && (
+                  <button
+                    type="button"
+                    onClick={signOut}
+                    title="Sign out"
+                    aria-label="Sign out"
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={signIn}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800",
+                  collapsed && "justify-center px-2"
+                )}
+                title={collapsed ? "Sign in with Google" : undefined}
+              >
+                <LogIn className="h-4.5 w-4.5 shrink-0" />
+                {!collapsed && <span>Sign in with Google</span>}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

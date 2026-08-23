@@ -20,6 +20,9 @@ import {
   getProviderById,
 } from "@/lib/providers";
 import type { Provider, Model } from "@/lib/providers";
+import { useAuth } from "@/components/auth-context";
+import { DEFAULT_DESCRIBE_SYSTEM_PROMPT, loadDescribePrompt, saveDescribePrompt } from "@/lib/prompts";
+import type { SettingsState } from "@/lib/state-types";
 
 interface ProvidersContextValue {
   providers: Provider[];
@@ -31,6 +34,8 @@ interface ProvidersContextValue {
   refineModel: string;
   chatProviderId: string;
   chatModel: string;
+  describePrompt: string;
+  setDescribePrompt: (v: string) => void;
   modelsCache: Record<string, Model[]>;
   loadingModelsFor: string | null;
   fetchModels: (provider: Provider) => Promise<void>;
@@ -48,6 +53,9 @@ interface ProvidersContextValue {
 const Ctx = React.createContext<ProvidersContextValue | null>(null);
 
 export function ProvidersProvider({ children }: { children: React.ReactNode }) {
+  const { user, status } = useAuth();
+  const loggedIn = status === "authenticated" && !!user?.id;
+  const [hydrated, setHydrated] = React.useState(false);
   const [providers, setProviders] = React.useState<Provider[]>([]);
   const [selectedProviderId, setSelectedProviderIdState] = React.useState("");
   const [selectedModel, setSelectedModel] = React.useState("");
@@ -55,46 +63,122 @@ export function ProvidersProvider({ children }: { children: React.ReactNode }) {
   const [refineModel, setRefineModel] = React.useState("");
   const [chatProviderId, setChatProviderIdState] = React.useState("");
   const [chatModel, setChatModel] = React.useState("");
+  const [describePrompt, setDescribePromptState] = React.useState(DEFAULT_DESCRIBE_SYSTEM_PROMPT);
   const [modelsCache, setModelsCache] = React.useState<Record<string, Model[]>>({});
   const [loadingModelsFor, setLoadingModelsFor] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    const p = loadProviders();
-    setProviders(p);
-    const selP = getSelectedProviderId() || p[0]?.id || "";
-    setSelectedProviderIdState(selP);
-    setSelectedModel(getSelectedModelId() || "");
-    const selRP = getSelectedRefineProviderId() || selP;
-    setRefineProviderIdState(selRP);
-    setRefineModel(getSelectedRefineModelId() || "");
-    const selCP = getSelectedChatProviderId() || selP;
-    setChatProviderIdState(selCP);
-    setChatModel(getSelectedChatModelId() || "");
+  const applySettings = React.useCallback((s: SettingsState) => {
+    setProviders(s.providers?.length ? s.providers : loadProviders());
+    setSelectedProviderIdState(s.selectedProviderId || "");
+    setSelectedModel(s.selectedModel || "");
+    setRefineProviderIdState(s.refineProviderId || "");
+    setRefineModel(s.refineModel || "");
+    setChatProviderIdState(s.chatProviderId || "");
+    setChatModel(s.chatModel || "");
+    setDescribePromptState(s.describePrompt || DEFAULT_DESCRIBE_SYSTEM_PROMPT);
   }, []);
+
+  const settingsFromLocalStorage = React.useCallback((): SettingsState => {
+    const p = loadProviders();
+    const selP = getSelectedProviderId() || p[0]?.id || "";
+    return {
+      providers: p,
+      selectedProviderId: selP,
+      selectedModel: getSelectedModelId() || "",
+      refineProviderId: getSelectedRefineProviderId() || selP,
+      refineModel: getSelectedRefineModelId() || "",
+      chatProviderId: getSelectedChatProviderId() || selP,
+      chatModel: getSelectedChatModelId() || "",
+      describePrompt: loadDescribePrompt(),
+    };
+  }, []);
+
+  // Hydrate once auth status is known: server store when logged in, localStorage otherwise.
+  React.useEffect(() => {
+    if (status === "loading") return;
+    let cancelled = false;
+
+    if (loggedIn) {
+      fetch("/api/state")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (cancelled) return;
+          if (data?.settings) {
+            applySettings(data.settings);
+          } else {
+            // First login: carry over localStorage settings into the server store.
+            const s = settingsFromLocalStorage();
+            applySettings(s);
+            fetch("/api/state", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ settings: s }),
+            }).catch(() => {});
+          }
+          setHydrated(true);
+        })
+        .catch(() => setHydrated(true));
+    } else {
+      applySettings(settingsFromLocalStorage());
+      setHydrated(true);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [status, loggedIn, applySettings, settingsFromLocalStorage]);
+
+  // Debounced sync to the server store while logged in (server is source of truth).
+  const syncTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => {
+    if (!loggedIn || !hydrated) return;
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(() => {
+      fetch("/api/state", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          settings: {
+            providers,
+            selectedProviderId,
+            selectedModel,
+            refineProviderId,
+            refineModel,
+            chatProviderId,
+            chatModel,
+            describePrompt,
+          },
+        }),
+      }).catch(() => {});
+    }, 500);
+    return () => {
+      if (syncTimer.current) clearTimeout(syncTimer.current);
+    };
+  }, [loggedIn, hydrated, providers, selectedProviderId, selectedModel, refineProviderId, refineModel, chatProviderId, chatModel, describePrompt]);
 
   const save = (next: Provider[]) => {
     setProviders(next);
-    saveProviders(next);
+    if (!loggedIn) saveProviders(next);
     if (!next.find((p) => p.id === selectedProviderId)) {
       const fb = next[0]?.id || "";
       setSelectedProviderIdState(fb);
-      setSelectedProviderId(fb);
+      if (!loggedIn) setSelectedProviderId(fb);
       setSelectedModel("");
-      setSelectedModelId("");
+      if (!loggedIn) setSelectedModelId("");
     }
     if (!next.find((p) => p.id === refineProviderId)) {
       const fb = next.find((p) => p.id === selectedProviderId)?.id || next[0]?.id || "";
       setRefineProviderIdState(fb);
-      setSelectedRefineProviderId(fb);
+      if (!loggedIn) setSelectedRefineProviderId(fb);
       setRefineModel("");
-      setSelectedRefineModelId("");
+      if (!loggedIn) setSelectedRefineModelId("");
     }
     if (!next.find((p) => p.id === chatProviderId)) {
       const fb = next.find((p) => p.id === selectedProviderId)?.id || next[0]?.id || "";
       setChatProviderIdState(fb);
-      setSelectedChatProviderId(fb);
+      if (!loggedIn) setSelectedChatProviderId(fb);
       setChatModel("");
-      setSelectedChatModelId("");
+      if (!loggedIn) setSelectedChatModelId("");
     }
   };
 
@@ -131,30 +215,35 @@ export function ProvidersProvider({ children }: { children: React.ReactNode }) {
 
   const onSelectProvider = (id: string) => {
     setSelectedProviderIdState(id);
-    setSelectedProviderId(id);
+    if (!loggedIn) setSelectedProviderId(id);
     if (!modelsCache[id]?.length) setSelectedModel("");
   };
   const onSelectModel = (id: string) => {
     setSelectedModel(id);
-    setSelectedModelId(id);
+    if (!loggedIn) setSelectedModelId(id);
   };
   const onSelectRefineProvider = (id: string) => {
     setRefineProviderIdState(id);
-    setSelectedRefineProviderId(id);
+    if (!loggedIn) setSelectedRefineProviderId(id);
     if (!modelsCache[id]?.length) setRefineModel("");
   };
   const onSelectRefineModel = (id: string) => {
     setRefineModel(id);
-    setSelectedRefineModelId(id);
+    if (!loggedIn) setSelectedRefineModelId(id);
   };
   const onSelectChatProvider = (id: string) => {
     setChatProviderIdState(id);
-    setSelectedChatProviderId(id);
+    if (!loggedIn) setSelectedChatProviderId(id);
     if (!modelsCache[id]?.length) setChatModel("");
   };
   const onSelectChatModel = (id: string) => {
     setChatModel(id);
-    setSelectedChatModelId(id);
+    if (!loggedIn) setSelectedChatModelId(id);
+  };
+
+  const setDescribePrompt = (v: string) => {
+    setDescribePromptState(v);
+    if (!loggedIn) saveDescribePrompt(v);
   };
 
   React.useEffect(() => {
@@ -188,6 +277,8 @@ export function ProvidersProvider({ children }: { children: React.ReactNode }) {
     refineModel,
     chatProviderId,
     chatModel,
+    describePrompt,
+    setDescribePrompt,
     modelsCache,
     loadingModelsFor,
     fetchModels,
