@@ -1,22 +1,32 @@
 "use client";
 
 import * as React from "react";
-import { Trash2 } from "lucide-react";
+import { Trash2, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatThread, type ChatMsg } from "@/components/ChatThread";
 import { ChatComposer } from "@/components/ChatComposer";
 import { useProviders } from "@/components/providers-context";
 import { useSettingsOpen } from "@/components/AppShell";
+import { useRetainedChat } from "@/components/retained-state";
 import { streamResponse } from "@/lib/stream";
 import { toast } from "sonner";
 
 export default function ChatPage() {
   const { providers, modelsCache, chatProviderId, chatModel, onSelectChatProvider, onSelectChatModel, loadingModelsFor, chatProvider } = useProviders();
   const { setOpen } = useSettingsOpen();
-  const [messages, setMessages] = React.useState<ChatMsg[]>([]);
-  const [input, setInput] = React.useState("");
-  const [isStreaming, setIsStreaming] = React.useState(false);
-  const [streamingText, setStreamingText] = React.useState("");
+  const { state: retained, setState: setRetained, clear: clearRetained } = useRetainedChat();
+  const messages = retained.messages;
+  const input = retained.input;
+  const isStreaming = retained.isStreaming;
+  const streamingText = retained.streamingText;
+  const setInput = (v: string | ((prev: string) => string)) =>
+    setRetained((s) => ({ ...s, input: typeof v === "function" ? (v as (p: string) => string)(s.input) : v }));
+  const setMessages = (v: ChatMsg[] | ((prev: ChatMsg[]) => ChatMsg[])) =>
+    setRetained((s) => ({ ...s, messages: typeof v === "function" ? (v as (p: ChatMsg[]) => ChatMsg[])(s.messages) : v }));
+  const setIsStreaming = (v: boolean | ((prev: boolean) => boolean)) =>
+    setRetained((s) => ({ ...s, isStreaming: typeof v === "function" ? (v as (p: boolean) => boolean)(s.isStreaming) : v }));
+  const setStreamingText = (v: string | ((prev: string) => string)) =>
+    setRetained((s) => ({ ...s, streamingText: typeof v === "function" ? (v as (p: string) => string)(s.streamingText) : v }));
 
   const handleSend = async (text: string, image?: { base64: string; mime: string; previewUrl: string } | null) => {
     if (!text && !image) return;
@@ -82,18 +92,21 @@ export default function ChatPage() {
   };
 
   const handleClear = () => {
-    setMessages([]);
-    setInput("");
-    setStreamingText("");
+    clearRetained();
     toast.success("Conversation cleared");
   };
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
       <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-base font-semibold">Chat</h1>
-          <p className="text-xs text-zinc-500">Ephemeral — cleared on refresh. Attach or paste images for vision models.</p>
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shrink-0">
+            <MessageSquare className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-[15px] font-semibold tracking-tight leading-none">Chat</h1>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">Ephemeral — cleared on refresh. Attach or paste images for vision models.</p>
+          </div>
         </div>
         {messages.length > 0 && (
           <Button variant="outline" size="sm" onClick={handleClear} disabled={isStreaming} className="shrink-0">

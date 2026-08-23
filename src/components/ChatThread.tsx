@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -63,10 +65,36 @@ export function ChatThread({ messages, streamingText, isStreaming }: ChatThreadP
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={m.imagePreviewUrl} alt="attachment" className="mb-2 max-h-48 rounded-xl border border-zinc-200 object-contain dark:border-zinc-800" />
               )}
-              <div className="whitespace-pre-wrap break-words leading-relaxed">
-                {m.content}
-                {isStreamingBubble && <span className="ml-1 inline-block h-3 w-1 animate-pulse bg-zinc-400 align-middle" />}
-              </div>
+              {isUser ? (
+                <div className="whitespace-pre-wrap break-words leading-relaxed">
+                  {m.content}
+                </div>
+              ) : (
+                <div className="prose prose-sm max-w-none break-words dark:prose-invert prose-p:my-2 prose-headings:font-semibold prose-headings:tracking-tight prose-pre:my-2 prose-pre:overflow-auto prose-code:text-[13px] prose-code:font-mono prose-table:text-sm prose-a:underline prose-a:underline-offset-4">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      a: (props) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+                      code: ({ children, ...props }) => {
+                        const isBlock = String(children).includes("\n");
+                        return isBlock ? (
+                          <code {...props} className="block overflow-auto rounded-lg bg-zinc-100 px-3 py-2 dark:bg-zinc-800">
+                            {children}
+                          </code>
+                        ) : (
+                          <code {...props} className="rounded bg-zinc-100 px-1 py-0.5 dark:bg-zinc-800">
+                            {children}
+                          </code>
+                        );
+                      },
+                      pre: (props) => <pre {...props} className="overflow-auto" />,
+                    }}
+                  >
+                    {m.content}
+                  </ReactMarkdown>
+                  {isStreamingBubble && <span className="ml-1 inline-block h-3 w-1 animate-pulse bg-zinc-400 align-middle" />}
+                </div>
+              )}
               {!isUser && m.content && (
                 <div className="mt-2 flex justify-end">
                   <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => handleCopy(m.content, i)}>

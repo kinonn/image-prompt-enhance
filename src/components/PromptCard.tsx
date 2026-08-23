@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Copy, Check, Sparkles, Loader2 } from "lucide-react";
+import { Copy, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,10 +27,7 @@ export function PromptCard({ prompt, isStreaming, onChangePrompt }: PromptCardPr
     <Card className="overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900">
-            <Sparkles className="h-3.5 w-3.5" />
-          </div>
-          <CardTitle className="text-[13px] font-semibold tracking-widest uppercase text-zinc-500 dark:text-zinc-400">Generated Prompt</CardTitle>
+          <CardTitle className="text-[13px] font-semibold tracking-widest text-zinc-500 dark:text-zinc-400">Generated or User Prompt</CardTitle>
           {isStreaming && <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400" />}
         </div>
         <Button variant="outline" size="sm" onClick={handleCopy} disabled={!prompt || isStreaming} className="h-8">

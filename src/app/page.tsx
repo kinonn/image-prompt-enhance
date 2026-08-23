@@ -12,6 +12,7 @@ import { streamResponse } from "@/lib/stream";
 import { toast } from "sonner";
 import { useProviders } from "@/components/providers-context";
 import { useSettingsOpen } from "@/components/AppShell";
+import { useRetainedImage } from "@/components/retained-state";
 
 export default function Home() {
   const {
@@ -30,60 +31,55 @@ export default function Home() {
     onSelectRefineModel,
   } = useProviders();
   const { setOpen: setSettingsOpen } = useSettingsOpen();
-  const [file, setFile] = React.useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
-  const [imageBase64, setImageBase64] = React.useState<string | null>(null);
-  const [imageMime, setImageMime] = React.useState<string>("image/jpeg");
-
-  const [isDescribing, setIsDescribing] = React.useState(false);
-  const [isRefining, setIsRefining] = React.useState(false);
-  const [streamingText, setStreamingText] = React.useState("");
-  const [promptText, setPromptText] = React.useState("");
-  const [refinedText, setRefinedText] = React.useState("");
+  const { state: retained, setState: setRetained, clear: clearRetained } = useRetainedImage();
+  const file = retained.file;
+  const previewUrl = retained.previewUrl;
+  const imageBase64 = retained.imageBase64;
+  const imageMime = retained.imageMime;
+  const promptText = retained.promptText;
+  const refinedText = retained.refinedText;
+  const streamingText = retained.streamingText;
+  const isDescribing = retained.isDescribing;
+  const isRefining = retained.isRefining;
+  const setPromptText = (v: string | ((prev: string) => string)) =>
+    setRetained((s) => ({ ...s, promptText: typeof v === "function" ? (v as (p: string) => string)(s.promptText) : v }));
+  const setRefinedText = (v: string | ((prev: string) => string)) =>
+    setRetained((s) => ({ ...s, refinedText: typeof v === "function" ? (v as (p: string) => string)(s.refinedText) : v }));
+  const setStreamingText = (v: string | ((prev: string) => string)) =>
+    setRetained((s) => ({ ...s, streamingText: typeof v === "function" ? (v as (p: string) => string)(s.streamingText) : v }));
+  const setIsDescribing = (v: boolean | ((prev: boolean) => boolean)) =>
+    setRetained((s) => ({ ...s, isDescribing: typeof v === "function" ? (v as (p: boolean) => boolean)(s.isDescribing) : v }));
+  const setIsRefining = (v: boolean | ((prev: boolean) => boolean)) =>
+    setRetained((s) => ({ ...s, isRefining: typeof v === "function" ? (v as (p: boolean) => boolean)(s.isRefining) : v }));
+  const refineInstruction = retained.refineInstruction;
+  const setRefineInstruction = (v: string) => setRetained((s) => ({ ...s, refineInstruction: v }));
   const [mounted, setMounted] = React.useState(false);
   const displayPrompt = isDescribing ? streamingText : promptText;
   React.useEffect(() => setMounted(true), []);
 
-  // File handling
+  // File handling — persisted in retained state so switching routes does not clear it
   const handleFileSelect = async (f: File) => {
-    setFile(f);
     const url = URL.createObjectURL(f);
-    setPreviewUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return url;
-    });
-    // resize for LLM
+    // Revoke previous preview if any before replacing
+    if (retained.previewUrl) URL.revokeObjectURL(retained.previewUrl);
+    setRetained((s) => ({ ...s, file: f, previewUrl: url, streamingText: "", promptText: "", refinedText: "" }));
     try {
       const { base64, mime } = await resizeImage(f, 1024, 0.8);
-      setImageBase64(base64);
-      setImageMime(mime);
+      setRetained((s) => ({ ...s, imageBase64: base64, imageMime: mime }));
     } catch (e) {
       toast.error("Failed to process image");
       console.error(e);
     }
-    // reset prompts
-    setStreamingText("");
-    setPromptText("");
-    setRefinedText("");
   };
 
   const handleClear = () => {
-    setFile(null);
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
-    setImageBase64(null);
-    setStreamingText("");
-    setPromptText("");
-    setRefinedText("");
+    clearRetained();
   };
 
-  // Remove only the uploaded image — the generated and refined prompts are
-  // left untouched so the user can keep working with them.
+  // Remove only the uploaded image — the generated and refined prompts are left untouched
   const handleRemoveImage = () => {
-    setFile(null);
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
-    setImageBase64(null);
+    if (retained.previewUrl) URL.revokeObjectURL(retained.previewUrl);
+    setRetained((s) => ({ ...s, file: null, previewUrl: null, imageBase64: null }));
   };
 
   const handleGenerate = async () => {
@@ -282,6 +278,8 @@ export default function Home() {
             onRefine={handleRefine}
             disabled={isDescribing}
             result={refinedText}
+            instruction={refineInstruction}
+            onInstructionChange={setRefineInstruction}
             providers={providers}
             modelsCache={modelsCache}
             refineProviderId={refineProviderId}

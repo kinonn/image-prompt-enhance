@@ -14,6 +14,8 @@ interface RefineBarProps {
   onRefine: (instruction: string) => void;
   disabled?: boolean;
   result: string;
+  instruction: string;
+  onInstructionChange: (v: string) => void;
   providers: Provider[];
   modelsCache: Record<string, Model[]>;
   refineProviderId: string;
@@ -30,6 +32,8 @@ export function RefineBar({
   onRefine,
   disabled,
   result,
+  instruction,
+  onInstructionChange,
   providers,
   modelsCache,
   refineProviderId,
@@ -39,7 +43,6 @@ export function RefineBar({
   onOpenSettings,
   loadingModelsFor,
 }: RefineBarProps) {
-  const [instruction, setInstruction] = React.useState("");
   const [copied, setCopied] = React.useState(false);
 
   const refineProvider = providers.find((p) => p.id === refineProviderId);
@@ -81,7 +84,7 @@ export function RefineBar({
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900">
             <Wand2 className="h-3.5 w-3.5" />
           </div>
-          <CardTitle className="text-[13px] font-semibold tracking-widest uppercase text-zinc-500 dark:text-zinc-400">Refine Prompt</CardTitle>
+          <CardTitle className="text-[13px] font-semibold tracking-widest uppercase text-zinc-500 dark:text-zinc-400">Refiner Prompt</CardTitle>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -94,7 +97,7 @@ export function RefineBar({
                   : "Upload an image and generate a prompt first"
               }
               value={instruction}
-              onChange={(e) => setInstruction(e.target.value)}
+              onChange={(e) => onInstructionChange(e.target.value)}
               onKeyDown={handleKeyDown}
               rows={3}
               disabled={isRefining || disabled}
@@ -172,7 +175,7 @@ export function RefineBar({
         {/* Dedicated box for the resulting refined prompt */}
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Refined Prompt</p>
+            <p className="text-[13px] font-semibold tracking-widest text-zinc-500 dark:text-zinc-400">Refined Prompt</p>
             {result && (
               <Button variant="ghost" size="sm" onClick={handleCopyResult} className="h-7 px-2 text-xs">
                 {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}

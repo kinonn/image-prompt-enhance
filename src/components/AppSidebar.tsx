@@ -7,17 +7,15 @@ import { PanelLeftClose, PanelLeftOpen, Moon, Sun, Settings } from "lucide-react
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS, NAV_SETTINGS_ITEM } from "@/lib/nav";
-import { Button } from "@/components/ui/button";
 
 const STORAGE_KEY = "sidebar-collapsed";
 
 interface AppSidebarProps {
-  onOpenSettings: () => void;
   collapsed: boolean;
   setCollapsed: (v: boolean) => void;
 }
 
-export function AppSidebar({ onOpenSettings, collapsed, setCollapsed }: AppSidebarProps) {
+export function AppSidebar({ collapsed, setCollapsed }: AppSidebarProps) {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
@@ -77,14 +75,14 @@ export function AppSidebar({ onOpenSettings, collapsed, setCollapsed }: AppSideb
         </button>
       </div>
 
-      <nav className="flex-1 space-y-1 p-2 overflow-y-auto">
+      <nav className="flex-1 space-y-1 p-2">
         {NAV_ITEMS.map((item) => (
           <NavLink key={item.href} href={item.href} label={item.label} icon={item.icon} match={item.match} />
         ))}
       </nav>
 
       <div className="border-t border-zinc-200 p-2 dark:border-zinc-800 space-y-1">
-        {/* Settings — both dialog + page per decision */}
+        {/* Settings page */}
         <Link
           href={NAV_SETTINGS_ITEM.href}
           onClick={() => setMobileOpen(false)}
@@ -100,33 +98,26 @@ export function AppSidebar({ onOpenSettings, collapsed, setCollapsed }: AppSideb
           <Settings className="h-4.5 w-4.5 shrink-0" />
           {!collapsed && <span>Settings</span>}
         </Link>
+
         <button
           type="button"
-          onClick={onOpenSettings}
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           className={cn(
-            "flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800",
+            "flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800",
             collapsed && "justify-center px-2"
           )}
-          title={collapsed ? "Providers (dialog)" : undefined}
+          title={collapsed ? "Theme" : undefined}
         >
-          <Settings className="h-4 w-4 shrink-0 opacity-60" />
-          {!collapsed && <span className="text-xs">Providers</span>}
+          {mounted ? (
+            <>
+              <Sun className="h-4.5 w-4.5 shrink-0 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+              <Moon className="absolute h-4.5 w-4.5 shrink-0 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+            </>
+          ) : (
+            <Sun className="h-4.5 w-4.5 shrink-0" />
+          )}
+          {!collapsed && <span>Theme</span>}
         </button>
-
-        <div className={cn("flex items-center gap-2 pt-1", collapsed && "justify-center")}>
-          <Button variant="ghost" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="h-8 w-8">
-            {mounted ? (
-              <>
-                <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-              </>
-            ) : (
-              <Sun className="h-4 w-4" />
-            )}
-            <span className="sr-only">Toggle theme</span>
-          </Button>
-          {!collapsed && <span className="text-xs text-zinc-500">Theme</span>}
-        </div>
       </div>
     </div>
   );
@@ -136,7 +127,7 @@ export function AppSidebar({ onOpenSettings, collapsed, setCollapsed }: AppSideb
       {/* Desktop */}
       <aside
         className={cn(
-          "hidden md:flex shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 transition-[width] duration-200",
+          "hidden md:flex shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 transition-[width] duration-200 sticky top-0 h-screen",
           widthClass
         )}
         aria-label="Sidebar"

@@ -1,10 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Upload, Image as ImageIcon, ClipboardPaste, X, ChevronDown, Settings, Loader2 } from "lucide-react";
+import { Upload, Image as ImageIcon, ClipboardPaste, X, ChevronDown, Settings, Loader2, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { validateFile } from "@/lib/image";
+import { DEFAULT_DESCRIBE_SYSTEM_PROMPT, loadDescribePrompt, saveDescribePrompt } from "@/lib/prompts";
 import type { Provider, Model } from "@/lib/providers";
 import { toast } from "sonner";
 
@@ -43,7 +45,11 @@ export function DropZone({
   const models = modelsCache[selectedProviderId] || [];
   const isLoadingModels = loadingModelsFor === selectedProviderId;
   const [isDragOver, setIsDragOver] = React.useState(false);
+  const [describeOpen, setDescribeOpen] = React.useState(false);
+  const [describePrompt, setDescribePrompt] = React.useState(DEFAULT_DESCRIBE_SYSTEM_PROMPT);
   const inputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => setDescribePrompt(loadDescribePrompt()), []);
 
   const handleFile = (file: File) => {
     const err = validateFile(file);
@@ -133,6 +139,22 @@ export function DropZone({
         <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 shrink-0 -translate-y-1/2 text-zinc-500" />
       </div>
       {isLoadingModels && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-zinc-400" />}
+      <button
+        type="button"
+        onClick={() => setDescribeOpen((v) => !v)}
+        disabled={disabled}
+        aria-expanded={describeOpen}
+        aria-controls="describe-prompt-panel"
+        className={cn(
+          "ml-auto inline-flex h-7 shrink-0 items-center gap-1 rounded-full border border-zinc-200 bg-white pl-2 pr-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800",
+          describeOpen && "border-zinc-300 bg-zinc-100 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+        )}
+        title="Edit the system prompt used when generating from an image"
+      >
+        <SlidersHorizontal className="h-3.5 w-3.5" />
+        Prompt settings
+        <ChevronDown className={cn("h-3 w-3 transition-transform", describeOpen && "rotate-180")} />
+      </button>
       {onOpenSettings && (
         <button
           type="button"
@@ -144,6 +166,56 @@ export function DropZone({
           <Settings className="h-3.5 w-3.5" />
         </button>
       )}
+    </div>
+  );
+
+  // Accordion panel — the "Image to Description Prompt" system prompt editor,
+  // toggled by the "Prompt settings" button in the ControlsBar above.
+  const DescribePromptPanel = (
+    <div
+      id="describe-prompt-panel"
+      className="space-y-3 border-t border-zinc-100 bg-zinc-50/70 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900/50"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium">Image to Description Prompt</p>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => {
+            setDescribePrompt(DEFAULT_DESCRIBE_SYSTEM_PROMPT);
+            saveDescribePrompt(DEFAULT_DESCRIBE_SYSTEM_PROMPT);
+            toast.success("Reset to default");
+          }}
+        >
+          Reset
+        </Button>
+      </div>
+      <p className="text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+        System prompt sent when generating from an image. Edit and save; empty resets to default on next generate.
+      </p>
+      <Textarea
+        value={describePrompt}
+        onChange={(e) => setDescribePrompt(e.target.value)}
+        rows={6}
+        className="min-h-[120px] font-mono text-xs leading-relaxed"
+        placeholder={DEFAULT_DESCRIBE_SYSTEM_PROMPT}
+      />
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          onClick={() => {
+            const v = describePrompt.trim() || DEFAULT_DESCRIBE_SYSTEM_PROMPT;
+            if (!describePrompt.trim()) setDescribePrompt(v);
+            saveDescribePrompt(v);
+            toast.success("Describe prompt saved");
+          }}
+        >
+          Save prompt
+        </Button>
+        <span className="text-xs leading-8 text-zinc-500">{describePrompt.length} chars</span>
+      </div>
     </div>
   );
 
@@ -160,6 +232,7 @@ export function DropZone({
           </Button>
         </div>
         {ControlsBar}
+        {describeOpen && DescribePromptPanel}
       </div>
     );
   }
@@ -207,6 +280,7 @@ export function DropZone({
       </div>
       <div className="mt-6 w-full pt-4 border-t border-zinc-100 dark:border-zinc-800 text-left" onClick={(e) => e.stopPropagation()}>
         {ControlsBar}
+        {describeOpen && DescribePromptPanel}
       </div>
     </div>
   );

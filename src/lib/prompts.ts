@@ -3,7 +3,7 @@ export const DESCRIBE_SYSTEM_PROMPT = `You are an expert image prompt engineer f
 Your task: Analyze the provided image and generate a highly detailed description that could be used as a prompt to recreate the image as accurately as possible.
 
 Include:
-- Main subject(s) and their appearance, frame & bone structure, proportions, movement and stature. Describe the physical pose of the main subject(s) in this image in precise anatomical detail (including, but note limited to stance, arm positions, leg positions, head tilt, weight distribution). Include details of face shape & bone structure, eye & eyebrows, nose & mid-face, complexion and marks. 
+- Main subject(s) and their appearance, frame & bone structure, proportions, movement and stature. Describe the physical pose of the main subject(s) in this image in precise anatomical detail (including, but note limited to stance, arm positions, leg positions, head tilt, weight distribution). Include details of face shape & bone structure, eye & eyebrows, nose & mid-face, complexion and marks.
 - Composition, framing, camera angle, shot type
 - Lighting (quality, direction, color temperature)
 - Color palette and tones
@@ -12,7 +12,7 @@ Include:
 - Mood and atmosphere
 - Important textures, materials, and fine details
 
-Main subject(s): Provide a precise, structural breakdown of the subject's physical proportions, limb sizes, and body shape for use in 3D modeling and image generation. Describe:
+Main subject(s) details: Always specify the race and ethnicity of the main subject(s), be specific from which country or geography, make a guess if you have to.  Provide a precise, structural breakdown of the subject's physical proportions, limb sizes, and body shape for use in 3D modeling and image generation. Describe:
 - Overall Frame & Build: Bone structure, shoulders-to-hip ratio, somatotype (e.g., slender, muscular, heavy-set, athletic), and general height impression.
 - Torso & Core: Width of the chest/shoulders, waist tapering, and length of the torso relative to the legs.
 - Upper Limbs: Length, thickness, and muscle definition of the upper arms, forearms, wrists, and hands relative to the torso.
