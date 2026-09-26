@@ -7,7 +7,6 @@ import { DropZone } from "@/components/DropZone";
 import { PromptCard } from "@/components/PromptCard";
 import { RefineBar } from "@/components/RefineBar";
 import { resizeImage } from "@/lib/image";
-import { loadDescribePrompt } from "@/lib/prompts";
 import { streamResponse } from "@/lib/stream";
 import { toast } from "sonner";
 import { useProviders } from "@/components/providers-context";
@@ -27,6 +26,7 @@ export default function Home() {
     loadingModelsFor,
     selectedProvider,
     refineProvider,
+    describePrompt,
     onSelectProvider,
     onSelectModel,
     onSelectRefineProvider,
@@ -108,7 +108,7 @@ export default function Home() {
           mime: imageMime,
           provider: { baseUrl: selectedProvider.baseUrl, apiKey: selectedProvider.apiKey },
           model: selectedModel,
-          describePrompt: loadDescribePrompt(),
+          describePrompt,
           effort: selectedEffort,
         }),
       });

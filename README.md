@@ -13,12 +13,13 @@ Simple, elegant Next.js app that turns an uploaded image into a detailed prompt 
 - **Providers** → OpenCode Go (`https://opencode.ai/zen/go/v1`, see https://opencode.ai/docs/go) and Ollama (`http://localhost:11434/v1`) presets by default; add any OpenAI-compatible provider (OpenCode Zen `https://opencode.ai/zen/v1`, OpenRouter `https://openrouter.ai/api/v1`, LM Studio…) via gear → Providers or the Settings page. Keys in `localStorage`, proxied through Next.js API routes (no CORS, no exposure to git)
 - **Per-task model selection** → pick a separate provider/model for generate, refine, and chat
 - **Multi-endpoint support** → the server proxy auto-detects the right endpoint per model: `/chat/completions` (OpenAI-style), `/responses` (Grok, GPT, Muse Spark), `/messages` (Claude, Gemini, Qwen, MiniMax on Go)
+- **Optional Google login** → sign in with Google to preserve settings + app state in a server-side in-memory store (per user) that survives page refreshes; anonymous mode works without login
 - **Streaming** → token-by-token
 - **Theme** → minimal light/dark, responsive, Tailwind + shadcn/ui
 
 ## Stack
 
-Next.js 16 (App Router, TS) • Tailwind v4 • shadcn/ui • next-themes • sonner • react-markdown • Edge-ready Node runtime • Docker (standalone output)
+Next.js 16 (App Router, TS) • Tailwind v4 • shadcn/ui • next-themes • sonner • react-markdown • next-auth (Auth.js v5) • Edge-ready Node runtime • Docker (standalone output)
 
 ## Quick start (local)
 
@@ -40,6 +41,28 @@ npm run dev
 - **Describe system prompt**: editable in the drop zone; persisted in `localStorage:image-prompt-describe-prompt`.
 - **Ephemeral images**: resized via Canvas to JPEG 1024px q0.8, base64 in memory only, discarded on clear/reload. No server storage.
 - **State across routes**: image-prompt and chat state is kept in memory while navigating between pages (cleared on refresh).
+- **Logged-in behavior**: when signed in, the server-side in-memory store is the source of truth for settings + app state (localStorage is ignored); when signed out, localStorage + in-memory behavior applies as above.
+
+## Google login (optional)
+
+Sign in with Google (sidebar → **Sign in with Google**) to preserve your settings and app state in a **server-side in-memory store** keyed by your Google account. It survives page refreshes and route changes, but is lost when the server restarts (no database — by design). Each user gets their own isolated state; anonymous mode works without login.
+
+Setup:
+
+1. Create an OAuth client at https://console.cloud.google.com/apis/credentials (Application type: Web application). Add an authorized redirect URI: `http://localhost:3000/api/auth/callback/google` (and your production origin).
+2. Copy the Client ID / Client secret into `.env`:
+   ```bash
+   AUTH_SECRET=<openssl rand -base64 32>
+   AUTH_GOOGLE_ID=<client id>
+   AUTH_GOOGLE_SECRET=<client secret>
+   ```
+3. Restart the dev server. The login UI appears in the sidebar only when `AUTH_GOOGLE_ID` + `AUTH_GOOGLE_SECRET` are set.
+
+Notes:
+
+- `AUTH_SECRET` is required in production; in dev a local-only fallback is used so the flow can be tested without it.
+- On first login, existing `localStorage` settings are carried over into your server-side state.
+- The in-memory store is single-instance — with multiple server replicas, state is not shared.
 
 ## API routes (proxied)
 
@@ -47,6 +70,8 @@ npm run dev
 - `POST /api/describe` → forwards vision request (`system: DESCRIBE_SYSTEM_PROMPT`, `user: [{text},{image_url}]`) streaming SSE
 - `POST /api/refine` → forwards `REFINE_SYSTEM_PROMPT + original + instruction` streaming SSE
 - `POST /api/chat` → forwards multi-turn chat (system + history, optional image on last user message) streaming SSE
+- `GET/PUT /api/state` → read/write the logged-in user's in-memory state (401 when signed out)
+- `GET/POST /api/auth/[...nextauth]` → NextAuth handlers (Google OAuth + session)
 
 All LLM calls go through server to avoid CORS and keep keys off the client network tab (still in localStorage, never committed).
 
@@ -75,8 +100,11 @@ src/app/page.tsx          # Image to Prompt orchestration (upload → generate �
 src/app/chat/page.tsx     # Chat (multi-turn, vision, markdown)
 src/app/settings/page.tsx # Provider management
 src/app/api/{models,describe,refine,chat}/route.ts
-src/lib/{providers, prompts, image, llm, extract, ssrf, stream, utils, nav}.ts
-src/components/{AppShell, AppSidebar, DropZone, PromptCard, RefineBar, SettingsDrawer, ChatComposer, ChatThread, providers-context, retained-state, theme-provider, ui/*}
+src/app/api/state/route.ts          # logged-in user's in-memory state (GET/PUT)
+src/app/api/auth/[...nextauth]/route.ts # NextAuth handlers
+src/auth.ts               # NextAuth config (Google provider, JWT sessions)
+src/lib/{providers, prompts, image, llm, extract, ssrf, stream, utils, nav, state-types, server-store}.ts
+src/components/{AppShell, AppSidebar, DropZone, PromptCard, RefineBar, SettingsDrawer, ChatComposer, ChatThread, providers-context, retained-state, auth-context, theme-provider, ui/*}
 ```
 
 ## Prompt engineering

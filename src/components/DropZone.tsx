@@ -6,10 +6,11 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { validateFile } from "@/lib/image";
-import { DEFAULT_DESCRIBE_SYSTEM_PROMPT, loadDescribePrompt, saveDescribePrompt } from "@/lib/prompts";
+import { DEFAULT_DESCRIBE_SYSTEM_PROMPT } from "@/lib/prompts";
 import { ThinkingEffortSelect } from "@/components/ThinkingEffortSelect";
 import type { Provider, Model } from "@/lib/providers";
 import type { EffortSelection } from "@/lib/effort";
+import { useProviders } from "@/components/providers-context";
 import { toast } from "sonner";
 
 interface DropZoneProps {
@@ -47,15 +48,13 @@ export function DropZone({
   loadingModelsFor,
   onOpenSettings,
 }: DropZoneProps) {
+  const { describePrompt, setDescribePrompt } = useProviders();
   const selectedProvider = providers.find((p) => p.id === selectedProviderId);
   const models = modelsCache[selectedProviderId] || [];
   const isLoadingModels = loadingModelsFor === selectedProviderId;
   const [isDragOver, setIsDragOver] = React.useState(false);
   const [describeOpen, setDescribeOpen] = React.useState(false);
-  const [describePrompt, setDescribePrompt] = React.useState(DEFAULT_DESCRIBE_SYSTEM_PROMPT);
   const inputRef = React.useRef<HTMLInputElement>(null);
-
-  React.useEffect(() => setDescribePrompt(loadDescribePrompt()), []);
 
   const handleFile = (file: File) => {
     const err = validateFile(file);
@@ -192,7 +191,6 @@ export function DropZone({
           className="h-7 text-xs"
           onClick={() => {
             setDescribePrompt(DEFAULT_DESCRIBE_SYSTEM_PROMPT);
-            saveDescribePrompt(DEFAULT_DESCRIBE_SYSTEM_PROMPT);
             toast.success("Reset to default");
           }}
         >
@@ -215,7 +213,6 @@ export function DropZone({
           onClick={() => {
             const v = describePrompt.trim() || DEFAULT_DESCRIBE_SYSTEM_PROMPT;
             if (!describePrompt.trim()) setDescribePrompt(v);
-            saveDescribePrompt(v);
             toast.success("Describe prompt saved");
           }}
         >
