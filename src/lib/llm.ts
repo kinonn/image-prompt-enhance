@@ -1,3 +1,5 @@
+import type { EffortSelection, ThinkingEffort } from "./effort";
+
 export interface ChatMessageContent {
   type: "text" | "image_url";
   text?: string;
@@ -15,6 +17,7 @@ export interface ChatPayload {
   stream?: boolean;
   temperature?: number;
   max_tokens?: number;
+  reasoning_effort?: string;
 }
 
 export type EndpointKind = "chat" | "responses" | "messages";
@@ -44,7 +47,26 @@ export function getEndpointUrl(baseUrl: string, model: string): string {
   return `${base}/chat/completions`;
 }
 
-export function buildChatPayload(model: string, system: string, userContent: ChatMessageContent[] | string): ChatPayload {
+// Extended-thinking token budget per effort level for Anthropic-style /messages providers.
+const EFFORT_BUDGET_TOKENS: Record<ThinkingEffort, number> = {
+  low: 1024,
+  medium: 4096,
+  high: 16384,
+};
+
+/**
+ * Translate a thinking-effort selection into provider-specific request params.
+ * "Default" (empty) returns nothing so no effort parameter is sent upstream.
+ */
+export function applyThinkingEffort(kind: EndpointKind, effort: EffortSelection): Record<string, unknown> {
+  if (!effort) return {};
+  if (kind === "chat") return { reasoning_effort: effort };
+  if (kind === "responses") return { reasoning: { effort } };
+  // Anthropic-style /messages: extended thinking with a token budget
+  return { thinking: { type: "enabled", budget_tokens: EFFORT_BUDGET_TOKENS[effort] } };
+}
+
+export function buildChatPayload(model: string, system: string, userContent: ChatMessageContent[] | string, effort: EffortSelection = ""): ChatPayload {
   const messages: ChatMessage[] =
     typeof userContent === "string"
       ? [
@@ -55,10 +77,10 @@ export function buildChatPayload(model: string, system: string, userContent: Cha
           { role: "system", content: system },
           { role: "user", content: userContent },
         ];
-  return { model, stream: true, temperature: 0.7, messages };
+  return { model, stream: true, temperature: 0.7, messages, ...applyThinkingEffort("chat", effort) };
 }
 
-export function buildAnthropicPayload(model: string, system: string, userContent: string | { text: string; imageBase64?: string; mime?: string }) {
+export function buildAnthropicPayload(model: string, system: string, userContent: string | { text: string; imageBase64?: string; mime?: string }, effort: EffortSelection = "") {
   // Anthropic messages format
   let content: unknown;
   if (typeof userContent === "string") {
@@ -84,10 +106,11 @@ export function buildAnthropicPayload(model: string, system: string, userContent
     max_tokens: 2048,
     system,
     messages: [{ role: "user", content }],
+    ...applyThinkingEffort("messages", effort),
   };
 }
 
-export function buildResponsesPayload(model: string, system: string, userContent: string | { text: string; imageBase64?: string; mime?: string }) {
+export function buildResponsesPayload(model: string, system: string, userContent: string | { text: string; imageBase64?: string; mime?: string }, effort: EffortSelection = "") {
   const inputContent: unknown[] = [];
   if (typeof userContent === "string") {
     inputContent.push({ type: "input_text", text: `${system}\n\n${userContent}` });
@@ -100,6 +123,7 @@ export function buildResponsesPayload(model: string, system: string, userContent
   return {
     model,
     stream: true,
+    ...applyThinkingEffort("responses", effort),
     input: [{ role: "user", content: inputContent }],
   };
 }

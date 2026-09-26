@@ -3,10 +3,13 @@ import { REFINE_SYSTEM_PROMPT } from "@/lib/prompts";
 import { getEndpointUrl, getEndpointKind, buildChatPayload, buildAnthropicPayload, buildResponsesPayload } from "@/lib/llm";
 import { extractResponseText } from "@/lib/extract";
 import { assertSafeProviderUrl } from "@/lib/ssrf";
+import { isEffortSelection } from "@/lib/effort";
+import type { EffortSelection } from "@/lib/effort";
 
 export async function POST(req: NextRequest) {
   try {
-    const { prompt, instruction, provider, model } = await req.json();
+    const { prompt, instruction, provider, model, effort } = await req.json();
+    const thinkingEffort: EffortSelection = isEffortSelection(effort) ? effort : "";
 
     if (!prompt || !instruction || !provider?.baseUrl || !model) {
       return new Response(JSON.stringify({ error: "Missing prompt, instruction, provider, or model" }), {
@@ -32,11 +35,11 @@ export async function POST(req: NextRequest) {
     const userText = `ORIGINAL PROMPT:\n${prompt}\n\nINSTRUCTION:\n${instruction}\n\nReturn only the refined prompt:`;
     let payload: unknown;
     if (kind === "chat") {
-      payload = buildChatPayload(model, REFINE_SYSTEM_PROMPT, userText);
+      payload = buildChatPayload(model, REFINE_SYSTEM_PROMPT, userText, thinkingEffort);
     } else if (kind === "messages") {
-      payload = buildAnthropicPayload(model, REFINE_SYSTEM_PROMPT, userText);
+      payload = buildAnthropicPayload(model, REFINE_SYSTEM_PROMPT, userText, thinkingEffort);
     } else {
-      payload = buildResponsesPayload(model, REFINE_SYSTEM_PROMPT, userText);
+      payload = buildResponsesPayload(model, REFINE_SYSTEM_PROMPT, userText, thinkingEffort);
     }
 
     const upstream = await fetch(url, {

@@ -21,6 +21,8 @@ export default function Home() {
     selectedModel,
     refineProviderId,
     refineModel,
+    selectedEffort,
+    refineEffort,
     modelsCache,
     loadingModelsFor,
     selectedProvider,
@@ -29,6 +31,8 @@ export default function Home() {
     onSelectModel,
     onSelectRefineProvider,
     onSelectRefineModel,
+    onSelectEffort,
+    onSelectRefineEffort,
   } = useProviders();
   const { setOpen: setSettingsOpen } = useSettingsOpen();
   const { state: retained, setState: setRetained, clear: clearRetained } = useRetainedImage();
@@ -105,6 +109,7 @@ export default function Home() {
           provider: { baseUrl: selectedProvider.baseUrl, apiKey: selectedProvider.apiKey },
           model: selectedModel,
           describePrompt: loadDescribePrompt(),
+          effort: selectedEffort,
         }),
       });
 
@@ -168,6 +173,7 @@ export default function Home() {
           instruction,
           provider: { baseUrl: refineProvider.baseUrl, apiKey: refineProvider.apiKey },
           model: refineModel,
+          effort: refineEffort,
         }),
       });
 
@@ -236,8 +242,10 @@ export default function Home() {
             modelsCache={modelsCache}
             selectedProviderId={selectedProviderId}
             selectedModel={selectedModel}
+            selectedEffort={selectedEffort}
             onSelectProvider={onSelectProvider}
             onSelectModel={onSelectModel}
+            onSelectEffort={onSelectEffort}
             loadingModelsFor={loadingModelsFor}
             onOpenSettings={() => setSettingsOpen(true)}
           />
@@ -284,8 +292,10 @@ export default function Home() {
             modelsCache={modelsCache}
             refineProviderId={refineProviderId}
             refineModel={refineModel}
+            refineEffort={refineEffort}
             onSelectRefineProvider={onSelectRefineProvider}
             onSelectRefineModel={onSelectRefineModel}
+            onSelectRefineEffort={onSelectRefineEffort}
             onOpenSettings={() => setSettingsOpen(true)}
             loadingModelsFor={loadingModelsFor}
           />

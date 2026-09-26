@@ -1,20 +1,24 @@
 import { NextRequest } from "next/server";
 import { CHAT_SYSTEM_PROMPT } from "@/lib/prompts";
-import { getEndpointUrl, getEndpointKind } from "@/lib/llm";
+import { getEndpointUrl, getEndpointKind, applyThinkingEffort } from "@/lib/llm";
 import { extractResponseText } from "@/lib/extract";
 import { assertSafeProviderUrl } from "@/lib/ssrf";
+import { isEffortSelection } from "@/lib/effort";
+import type { EffortSelection } from "@/lib/effort";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { messages, provider, model, systemPrompt, imageBase64, mime } = body as {
+    const { messages, provider, model, systemPrompt, imageBase64, mime, effort } = body as {
       messages?: { role: string; content: string }[];
       provider?: { baseUrl?: string; apiKey?: string };
       model?: string;
       systemPrompt?: string;
       imageBase64?: string;
       mime?: string;
+      effort?: unknown;
     };
+    const thinkingEffort: EffortSelection = isEffortSelection(effort) ? effort : "";
 
     if (!Array.isArray(messages) || messages.length === 0 || !provider?.baseUrl || !model) {
       return new Response(JSON.stringify({ error: "Missing messages, provider, or model" }), {
@@ -28,6 +32,7 @@ export async function POST(req: NextRequest) {
     const baseUrl = provider.baseUrl.replace(/\/$/, "");
     const url = getEndpointUrl(baseUrl, model);
     const kind = getEndpointKind(baseUrl, model);
+    const thinkingParams = applyThinkingEffort(kind, thinkingEffort);
 
     const system = typeof systemPrompt === "string" && systemPrompt.trim() ? systemPrompt.trim() : CHAT_SYSTEM_PROMPT;
 
@@ -52,12 +57,13 @@ export async function POST(req: NextRequest) {
           model,
           stream: true,
           temperature: 0.7,
+          ...thinkingParams,
           messages: [{ role: "system", content: system }, ...history, { role: "user", content: lastUserImage }],
         };
       } else {
         // Use buildChatPayload pattern but with history
         const msgs = [{ role: "system", content: system } as const, ...messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content }))];
-        payload = { model, stream: true, temperature: 0.7, messages: msgs };
+        payload = { model, stream: true, temperature: 0.7, ...thinkingParams, messages: msgs };
       }
     } else if (kind === "messages") {
       // Anthropic: system separate, messages array; image on last user
@@ -74,7 +80,7 @@ export async function POST(req: NextRequest) {
         }
         return { role: m.role, content: [{ type: "text", text: m.content }] };
       });
-      payload = { model, stream: true, max_tokens: 4096, system, messages: anthroMessages };
+      payload = { model, stream: true, max_tokens: 4096, system, ...thinkingParams, messages: anthroMessages };
     } else {
       // Responses API: flatten history into input
       const input = messages.map((m) => ({
@@ -89,7 +95,7 @@ export async function POST(req: NextRequest) {
         }
       }
       // Prepend system as first input_text
-      payload = { model, stream: true, input: [{ role: "user", content: [{ type: "input_text", text: system }] }, ...input] };
+      payload = { model, stream: true, ...thinkingParams, input: [{ role: "user", content: [{ type: "input_text", text: system }] }, ...input] };
     }
 
     const upstream = await fetch(url, {

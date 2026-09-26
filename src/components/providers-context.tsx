@@ -17,9 +17,17 @@ import {
   setSelectedChatProviderId,
   getSelectedChatModelId,
   setSelectedChatModelId,
+  getSelectedEffort,
+  setSelectedEffort,
+  getSelectedRefineEffort,
+  setSelectedRefineEffort,
+  getSelectedChatEffort,
+  setSelectedChatEffort,
   getProviderById,
 } from "@/lib/providers";
 import type { Provider, Model } from "@/lib/providers";
+import { isEffortSelection } from "@/lib/effort";
+import type { EffortSelection } from "@/lib/effort";
 
 interface ProvidersContextValue {
   providers: Provider[];
@@ -31,6 +39,9 @@ interface ProvidersContextValue {
   refineModel: string;
   chatProviderId: string;
   chatModel: string;
+  selectedEffort: EffortSelection;
+  refineEffort: EffortSelection;
+  chatEffort: EffortSelection;
   modelsCache: Record<string, Model[]>;
   loadingModelsFor: string | null;
   fetchModels: (provider: Provider) => Promise<void>;
@@ -40,6 +51,9 @@ interface ProvidersContextValue {
   onSelectRefineModel: (id: string) => void;
   onSelectChatProvider: (id: string) => void;
   onSelectChatModel: (id: string) => void;
+  onSelectEffort: (v: EffortSelection) => void;
+  onSelectRefineEffort: (v: EffortSelection) => void;
+  onSelectChatEffort: (v: EffortSelection) => void;
   selectedProvider: Provider | undefined;
   refineProvider: Provider | undefined;
   chatProvider: Provider | undefined;
@@ -55,8 +69,13 @@ export function ProvidersProvider({ children }: { children: React.ReactNode }) {
   const [refineModel, setRefineModel] = React.useState("");
   const [chatProviderId, setChatProviderIdState] = React.useState("");
   const [chatModel, setChatModel] = React.useState("");
+  const [selectedEffort, setSelectedEffortState] = React.useState<EffortSelection>("");
+  const [refineEffort, setRefineEffort] = React.useState<EffortSelection>("");
+  const [chatEffort, setChatEffort] = React.useState<EffortSelection>("");
   const [modelsCache, setModelsCache] = React.useState<Record<string, Model[]>>({});
   const [loadingModelsFor, setLoadingModelsFor] = React.useState<string | null>(null);
+
+  const sanitizeEffort = (v: string | null): EffortSelection => (isEffortSelection(v) ? v : "");
 
   React.useEffect(() => {
     const p = loadProviders();
@@ -70,6 +89,9 @@ export function ProvidersProvider({ children }: { children: React.ReactNode }) {
     const selCP = getSelectedChatProviderId() || selP;
     setChatProviderIdState(selCP);
     setChatModel(getSelectedChatModelId() || "");
+    setSelectedEffortState(sanitizeEffort(getSelectedEffort()));
+    setRefineEffort(sanitizeEffort(getSelectedRefineEffort()));
+    setChatEffort(sanitizeEffort(getSelectedChatEffort()));
   }, []);
 
   const save = (next: Provider[]) => {
@@ -156,6 +178,18 @@ export function ProvidersProvider({ children }: { children: React.ReactNode }) {
     setChatModel(id);
     setSelectedChatModelId(id);
   };
+  const onSelectEffort = (v: EffortSelection) => {
+    setSelectedEffortState(v);
+    setSelectedEffort(v);
+  };
+  const onSelectRefineEffort = (v: EffortSelection) => {
+    setRefineEffort(v);
+    setSelectedRefineEffort(v);
+  };
+  const onSelectChatEffort = (v: EffortSelection) => {
+    setChatEffort(v);
+    setSelectedChatEffort(v);
+  };
 
   React.useEffect(() => {
     const dm = modelsCache[selectedProviderId];
@@ -188,6 +222,9 @@ export function ProvidersProvider({ children }: { children: React.ReactNode }) {
     refineModel,
     chatProviderId,
     chatModel,
+    selectedEffort,
+    refineEffort,
+    chatEffort,
     modelsCache,
     loadingModelsFor,
     fetchModels,
@@ -197,6 +234,9 @@ export function ProvidersProvider({ children }: { children: React.ReactNode }) {
     onSelectRefineModel,
     onSelectChatProvider,
     onSelectChatModel,
+    onSelectEffort,
+    onSelectRefineEffort,
+    onSelectChatEffort,
     selectedProvider,
     refineProvider,
     chatProvider,

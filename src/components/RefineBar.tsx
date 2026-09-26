@@ -5,7 +5,9 @@ import { Wand2, Loader2, Send, Copy, Check, ChevronDown, Settings } from "lucide
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ThinkingEffortSelect } from "@/components/ThinkingEffortSelect";
 import type { Provider, Model } from "@/lib/providers";
+import type { EffortSelection } from "@/lib/effort";
 import { copyText } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -21,8 +23,10 @@ interface RefineBarProps {
   modelsCache: Record<string, Model[]>;
   refineProviderId: string;
   refineModel: string;
+  refineEffort: EffortSelection;
   onSelectRefineProvider: (id: string) => void;
   onSelectRefineModel: (id: string) => void;
+  onSelectRefineEffort: (v: EffortSelection) => void;
   onOpenSettings?: () => void;
   loadingModelsFor?: string | null;
 }
@@ -39,8 +43,10 @@ export function RefineBar({
   modelsCache,
   refineProviderId,
   refineModel,
+  refineEffort,
   onSelectRefineProvider,
   onSelectRefineModel,
+  onSelectRefineEffort,
   onOpenSettings,
   loadingModelsFor,
 }: RefineBarProps) {
@@ -153,6 +159,11 @@ export function RefineBar({
                   </select>
                   <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 shrink-0 -translate-y-1/2 text-zinc-500" />
                 </div>
+                <ThinkingEffortSelect
+                  value={refineEffort}
+                  onChange={onSelectRefineEffort}
+                  disabled={isRefining || disabled}
+                />
 
                 {isLoadingRefineModels && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-zinc-400" />}
 

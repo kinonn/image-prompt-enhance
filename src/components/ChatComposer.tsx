@@ -4,7 +4,9 @@ import * as React from "react";
 import { Send, Loader2, Paperclip, X, ChevronDown, Settings, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ThinkingEffortSelect } from "@/components/ThinkingEffortSelect";
 import type { Provider, Model } from "@/lib/providers";
+import type { EffortSelection } from "@/lib/effort";
 import { validateFile } from "@/lib/image";
 
 interface ChatComposerProps {
@@ -17,8 +19,10 @@ interface ChatComposerProps {
   modelsCache: Record<string, Model[]>;
   chatProviderId: string;
   chatModel: string;
+  chatEffort: EffortSelection;
   onSelectChatProvider: (id: string) => void;
   onSelectChatModel: (id: string) => void;
+  onSelectChatEffort: (v: EffortSelection) => void;
   loadingModelsFor?: string | null;
   onOpenSettings?: () => void;
 }
@@ -33,8 +37,10 @@ export function ChatComposer({
   modelsCache,
   chatProviderId,
   chatModel,
+  chatEffort,
   onSelectChatProvider,
   onSelectChatModel,
+  onSelectChatEffort,
   loadingModelsFor,
   onOpenSettings,
 }: ChatComposerProps) {
@@ -169,6 +175,7 @@ export function ChatComposer({
               </select>
               <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-zinc-500" />
             </div>
+            <ThinkingEffortSelect value={chatEffort} onChange={onSelectChatEffort} disabled={!!isStreaming || !!disabled} />
             {isLoadingModels && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-zinc-400" />}
             <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/jpg" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
             <button

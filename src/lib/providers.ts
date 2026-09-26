@@ -37,6 +37,9 @@ const SELECTED_REFINE_PROVIDER_KEY = "image-prompt-selected-refine-provider";
 const SELECTED_REFINE_MODEL_KEY = "image-prompt-selected-refine-model";
 const SELECTED_CHAT_PROVIDER_KEY = "image-prompt-selected-chat-provider";
 const SELECTED_CHAT_MODEL_KEY = "image-prompt-selected-chat-model";
+const SELECTED_EFFORT_KEY = "image-prompt-selected-effort";
+const SELECTED_REFINE_EFFORT_KEY = "image-prompt-selected-refine-effort";
+const SELECTED_CHAT_EFFORT_KEY = "image-prompt-selected-chat-effort";
 
 export function loadProviders(): Provider[] {
   if (typeof window === "undefined") return DEFAULT_PROVIDERS;
@@ -128,6 +131,33 @@ export function getSelectedChatModelId(): string | null {
 
 export function setSelectedChatModelId(id: string) {
   localStorage.setItem(SELECTED_CHAT_MODEL_KEY, id);
+}
+
+export function getSelectedEffort(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(SELECTED_EFFORT_KEY);
+}
+
+export function setSelectedEffort(id: string) {
+  localStorage.setItem(SELECTED_EFFORT_KEY, id);
+}
+
+export function getSelectedRefineEffort(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(SELECTED_REFINE_EFFORT_KEY);
+}
+
+export function setSelectedRefineEffort(id: string) {
+  localStorage.setItem(SELECTED_REFINE_EFFORT_KEY, id);
+}
+
+export function getSelectedChatEffort(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(SELECTED_CHAT_EFFORT_KEY);
+}
+
+export function setSelectedChatEffort(id: string) {
+  localStorage.setItem(SELECTED_CHAT_EFFORT_KEY, id);
 }
 
 export function getProviderById(providers: Provider[], id: string): Provider | undefined {

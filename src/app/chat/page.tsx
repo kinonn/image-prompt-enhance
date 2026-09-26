@@ -12,7 +12,7 @@ import { streamResponse } from "@/lib/stream";
 import { toast } from "sonner";
 
 export default function ChatPage() {
-  const { providers, modelsCache, chatProviderId, chatModel, onSelectChatProvider, onSelectChatModel, loadingModelsFor, chatProvider } = useProviders();
+  const { providers, modelsCache, chatProviderId, chatModel, chatEffort, onSelectChatProvider, onSelectChatModel, onSelectChatEffort, loadingModelsFor, chatProvider } = useProviders();
   const { setOpen } = useSettingsOpen();
   const { state: retained, setState: setRetained, clear: clearRetained } = useRetainedChat();
   const messages = retained.messages;
@@ -56,6 +56,7 @@ export default function ChatPage() {
           messages: apiMessages,
           provider: { baseUrl: chatProvider.baseUrl, apiKey: chatProvider.apiKey },
           model: chatModel,
+          effort: chatEffort,
           imageBase64: image?.base64,
           mime: image?.mime,
         }),
@@ -128,8 +129,10 @@ export default function ChatPage() {
           modelsCache={modelsCache}
           chatProviderId={chatProviderId}
           chatModel={chatModel}
+          chatEffort={chatEffort}
           onSelectChatProvider={onSelectChatProvider}
           onSelectChatModel={onSelectChatModel}
+          onSelectChatEffort={onSelectChatEffort}
           loadingModelsFor={loadingModelsFor}
           onOpenSettings={() => setOpen(true)}
         />

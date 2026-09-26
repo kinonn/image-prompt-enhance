@@ -3,10 +3,13 @@ import { DESCRIBE_SYSTEM_PROMPT } from "@/lib/prompts";
 import { getEndpointUrl, getEndpointKind, buildChatPayload, buildAnthropicPayload, buildResponsesPayload } from "@/lib/llm";
 import { extractResponseText } from "@/lib/extract";
 import { assertSafeProviderUrl } from "@/lib/ssrf";
+import { isEffortSelection } from "@/lib/effort";
+import type { EffortSelection } from "@/lib/effort";
 
 export async function POST(req: NextRequest) {
   try {
-    const { imageBase64, mime, provider, model, describePrompt } = await req.json();
+    const { imageBase64, mime, provider, model, describePrompt, effort } = await req.json();
+    const thinkingEffort: EffortSelection = isEffortSelection(effort) ? effort : "";
 
     if (!imageBase64 || !provider?.baseUrl || !model) {
       return new Response(JSON.stringify({ error: "Missing image, provider, or model" }), {
@@ -41,19 +44,19 @@ export async function POST(req: NextRequest) {
           type: "image_url",
           image_url: { url: `data:${mime || "image/jpeg"};base64,${imageBase64}` },
         },
-      ]);
+      ], thinkingEffort);
     } else if (kind === "messages") {
       payload = buildAnthropicPayload(model, systemPrompt, {
         text: "Describe this image as a detailed prompt to recreate it:",
         imageBase64,
         mime,
-      });
+      }, thinkingEffort);
     } else {
       payload = buildResponsesPayload(model, systemPrompt, {
         text: "Describe this image as a detailed prompt to recreate it:",
         imageBase64,
         mime,
-      });
+      }, thinkingEffort);
     }
 
     const upstream = await fetch(url, {
