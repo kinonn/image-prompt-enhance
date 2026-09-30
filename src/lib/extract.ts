@@ -13,6 +13,13 @@ function str(v: unknown): string {
 export function extractResponseText(json: unknown): string {
   if (!isObj(json)) return "";
 
+  // Ollama native /api/chat: text lives on `message`, with thinking alongside.
+  if (isObj(json.message)) {
+    const thinking = str(json.message.thinking);
+    const text = str(json.message.content);
+    return thinking + text;
+  }
+
   const choices = Array.isArray(json.choices) ? json.choices : [];
   const first = choices[0];
   if (isObj(first)) {

@@ -78,6 +78,19 @@ export async function proxyLLMRequest(target: ProxyTarget, buildPayload: Payload
     });
   }
 
+  // Ollama's native /api/chat streams NDJSON. Pass it through with its own
+  // content-type so the client takes the line-based path in streamResponse
+  // rather than trying to parse a half-written JSON body.
+  if (contentType.includes("application/x-ndjson")) {
+    return new Response(upstream.body, {
+      headers: {
+        "Content-Type": "application/x-ndjson",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
+  }
+
   const json = await upstream.json();
   return new Response(extractResponseText(json), {
     headers: { "Content-Type": "text/plain; charset=utf-8" },

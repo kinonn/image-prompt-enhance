@@ -5,6 +5,7 @@
 import fs from "node:fs";
 import { spawn } from "node:child_process";
 import { parseSSEChunk } from "./src/lib/stream.ts";
+import { getEndpointKind, getEndpointUrl, buildOllamaPayload, OLLAMA_NUM_CTX, OLLAMA_NUM_PREDICT } from "./src/lib/llm.ts";
 
 const BASE = process.env.APP_URL || "http://127.0.0.1:3100";
 const PROVIDER = { baseUrl: `${process.env.FAKE_URL || "http://127.0.0.1:9099"}/v1`, apiKey: "sk-test" };
@@ -22,6 +23,15 @@ const render = (sseText) => {
   let out = "";
   for (const part of sseText.split("\n\n")) {
     if (part.includes("data:")) parseSSEChunk(part, (t) => (out += t));
+  }
+  return out;
+};
+
+/** Same, for Ollama's native NDJSON stream (one JSON object per line). */
+const renderNDJSON = (ndjsonText) => {
+  let out = "";
+  for (const line of ndjsonText.split("\n")) {
+    if (line.trim()) parseSSEChunk(line, (t) => (out += t));
   }
   return out;
 };
@@ -84,6 +94,59 @@ const run = async () => {
 
   // Snapshot the 3x3 matrix before the failure-path tests add their own calls.
   const matrix = bodies();
+
+  // --- 1b. Ollama: native /api/chat, NDJSON stream, and a raised num_ctx.
+  // The 4096 default is smaller than REFINE_SYSTEM_PROMPT, so without
+  // options.num_ctx the model returns an empty completion (finish_reason:
+  // length). Ollama's compat endpoint silently ignores `options`, so this only
+  // works because dispatch goes to the native endpoint.
+  //
+  // These are unit-level so they hold regardless of what is listening on
+  // :11434; the end-to-end pass below additionally drives the real routes.
+  for (const baseUrl of ["http://localhost:11434/v1", "http://127.0.0.1:11434/v1", "http://ollama:11434/v1", "http://host.docker.internal:11434/v1"]) {
+    check(`ollama detected for ${baseUrl}`, getEndpointKind(baseUrl, "qwen3-coder:30b") === "ollama", getEndpointKind(baseUrl, "qwen3-coder:30b"));
+  }
+  check("ollama url is native /api/chat", getEndpointUrl("http://localhost:11434/v1", "qwen3-coder:30b") === "http://localhost:11434/api/chat", getEndpointUrl("http://localhost:11434/v1", "qwen3-coder:30b"));
+  // LM Studio on :1234 is local but not Ollama: it must still use /chat/completions.
+  check("non-ollama local provider unaffected", getEndpointKind("http://localhost:1234/v1", "gemma-3-12b") === "chat" && getEndpointUrl("http://localhost:1234/v1", "gemma-3-12b") === "http://localhost:1234/v1/chat/completions", getEndpointUrl("http://localhost:1234/v1", "gemma-3-12b"));
+  check("num_ctx clears the 4096 default", OLLAMA_NUM_CTX > 4096 && OLLAMA_NUM_PREDICT > 0, `${OLLAMA_NUM_CTX}/${OLLAMA_NUM_PREDICT}`);
+
+  const ollamaPayload = buildOllamaPayload("m", "sys", [
+    { role: "user", content: [{ type: "text", text: "hi" }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${IMG}` } }] },
+  ]);
+  check("ollama payload content is a string", ollamaPayload.messages.every((m) => typeof m.content === "string"), JSON.stringify(ollamaPayload.messages));
+  check("ollama payload strips the data: prefix", ollamaPayload.messages.at(-1).images?.[0] === IMG, JSON.stringify(ollamaPayload.messages.at(-1).images));
+  check("ollama payload sets options", ollamaPayload.options?.num_ctx === OLLAMA_NUM_CTX && ollamaPayload.options?.num_predict === OLLAMA_NUM_PREDICT, JSON.stringify(ollamaPayload.options));
+  check("ollama payload has system first", ollamaPayload.messages[0].role === "system" && ollamaPayload.messages[0].content === "sys", JSON.stringify(ollamaPayload.messages[0]));
+
+  // End-to-end through the real routes, which needs the fake bound to :11434.
+  // A real Ollama already on that port makes these unrunnable locally; CI is
+  // clean, and the unit checks above cover the same logic unconditionally. The
+  // probe asks for the fake's fixed model, which a real Ollama will not have.
+  const ollamaUp = await fetch("http://127.0.0.1:11434/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model: "fake-model", messages: [{ role: "user", content: "ping" }], stream: false }),
+    signal: AbortSignal.timeout(4000),
+  })
+    .then((r) => r.ok && r.headers.get("content-type")?.includes("x-ndjson"))
+    .catch(() => false);
+  if (!ollamaUp) {
+    console.log("SKIP  ollama end-to-end (:11434 in use by a real Ollama)");
+  } else {
+    const ollamaProvider = { baseUrl: "http://127.0.0.1:11434/v1", apiKey: "" };
+    for (const [path, extra] of [
+      ["/api/refine", { prompt: "a cat", instruction: "more cinematic" }],
+      ["/api/describe", { imageBase64: IMG, mime: "image/jpeg" }],
+      ["/api/chat", { messages: [{ role: "user", content: "hi" }], imageBase64: IMG, mime: "image/jpeg" }],
+    ]) {
+      const res = await post(path, { ...extra, provider: ollamaProvider, model: "fake-model" });
+      const rendered = renderNDJSON(res.text);
+      check(`${path} ollama NDJSON -> "ollama ollama reply"`, rendered === "ollama ollama reply", JSON.stringify(rendered || res.text.slice(0, 160)));
+    }
+    const ollamaCalls = bodies().filter((b) => b.body?.options?.num_ctx);
+    check("ollama e2e hit native /api/chat 3x", ollamaCalls.length === 3 && ollamaCalls.every((c) => c.url.endsWith("/api/chat")), JSON.stringify(ollamaCalls.map((c) => c.url)));
+  }
 
   // --- 2. 400s keep each route's own message, as JSON
   for (const [path, body, want] of [

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { DESCRIBE_SYSTEM_PROMPT } from "@/lib/prompts";
-import { buildChatPayload, buildAnthropicPayload, buildResponsesPayload } from "@/lib/llm";
+import { buildChatPayload, buildAnthropicPayload, buildResponsesPayload, buildOllamaPayload } from "@/lib/llm";
 import { jsonError, proxyLLMRequest, toErrorResponse } from "@/lib/proxy";
 import type { EffortSelection } from "@/lib/effort";
 
@@ -21,6 +21,9 @@ export async function POST(req: NextRequest) {
     return await proxyLLMRequest(
       { baseUrl: provider.baseUrl, apiKey: provider.apiKey, model, effort },
       (kind, effort: EffortSelection) => {
+        if (kind === "ollama") {
+          return buildOllamaPayload(model, systemPrompt, [{ role: "user", content: USER_TEXT }], imageBase64);
+        }
         if (kind === "chat") {
           return buildChatPayload(model, systemPrompt, [
             { type: "text", text: USER_TEXT },

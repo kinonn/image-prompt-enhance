@@ -37,6 +37,7 @@ npm run dev
 
 - **Providers** stored in `localStorage:image-prompt-providers`. Defaults: `OpenCode Go` (`https://opencode.ai/zen/go/v1`, docs https://opencode.ai/docs/go, models `https://opencode.ai/zen/go/v1/models`) and `Ollama` (`http://localhost:11434/v1`, no key needed). Zen alternative: `https://opencode.ai/zen/v1`.
 - **Add generic provider**: Name, Base URL (must be OpenAI-compatible `/v1`), API Key. `Test` pings `POST /api/models`. Supports OpenRouter (`https://openrouter.ai/api/v1`), Ollama local, etc.
+- **Ollama**: keep the `http://localhost:11434/v1` base URL — the proxy detects the `:11434` port and dispatches to Ollama's native `/api/chat` rather than its `/v1` compatibility layer. This is required, not cosmetic: the compat endpoint silently ignores `options`, and Ollama's default `num_ctx` of 4096 is smaller than the refine system prompt, which yields an empty answer. No key needed.
 - **Models**: fetched via `POST /api/models {baseUrl, apiKey}` proxy → `{models:[{id,name}]}`. Selection persisted in `localStorage` (separate keys for generate, refine, and chat).
 - **Describe system prompt**: editable in the drop zone; persisted in `localStorage:image-prompt-describe-prompt`.
 - **Ephemeral images**: resized via Canvas to JPEG 1024px q0.8, base64 in memory only, discarded on clear/reload. No server storage.

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { CHAT_SYSTEM_PROMPT } from "@/lib/prompts";
-import { ANTHROPIC_MAX_TOKENS, applyThinkingEffort } from "@/lib/llm";
+import { ANTHROPIC_MAX_TOKENS, applyThinkingEffort, buildOllamaPayload } from "@/lib/llm";
 import { jsonError, proxyLLMRequest, toErrorResponse } from "@/lib/proxy";
 import type { EffortSelection } from "@/lib/effort";
 
@@ -32,6 +32,18 @@ export async function POST(req: NextRequest) {
       { baseUrl: provider.baseUrl, apiKey: provider.apiKey, model, effort },
       (kind, effort: EffortSelection) => {
         const thinkingParams = applyThinkingEffort(kind, effort);
+
+        if (kind === "ollama") {
+          // Native /api/chat: history as plain strings, image on the last user
+          // turn as a sibling `images` array. num_ctx/num_predict are set by
+          // buildOllamaPayload, so `thinkingParams` is intentionally unused.
+          return buildOllamaPayload(
+            model,
+            system,
+            messages.map((m) => ({ role: m.role, content: m.content })),
+            imagePart?.base64,
+          );
+        }
 
         if (kind === "chat") {
           // OpenAI-style: system + history; the last user message may carry an image.

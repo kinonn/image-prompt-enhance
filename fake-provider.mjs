@@ -30,6 +30,21 @@ const server = http.createServer((req, res) => {
       );
     }
 
+    // Ollama's native surface: /api/chat is not under /v1, and it streams
+    // newline-delimited JSON (no `data:` prefix) rather than SSE.
+    if (req.url.endsWith("/api/chat")) {
+      res.writeHead(200, { "Content-Type": "application/x-ndjson" });
+      for (const e of [
+        { message: { role: "assistant", content: "", thinking: "ollama " }, done: false },
+        { message: { role: "assistant", content: "ollama reply" }, done: false },
+        { message: { role: "assistant", content: "" }, done: true },
+      ]) {
+        res.write(`${JSON.stringify(e)}\n`);
+      }
+      res.end();
+      return;
+    }
+
     // Only serve the canonical /v1 base; anything else is a 404 like a real
     // provider hitting an unknown path.
     if (!req.url.startsWith("/v1/")) {
@@ -74,3 +89,12 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, "127.0.0.1", () => console.log(`fake provider on http://127.0.0.1:${PORT}/v1`));
+
+// Endpoint dispatch identifies Ollama by port 11434, so the Ollama assertions
+// need the fake reachable there too. If a real Ollama already owns the port,
+// skip rather than fail: the point of these checks is dispatch and payload
+// shape, which CI verifies on a clean runner.
+const OLLAMA_PORT = Number(process.env.FAKE_OLLAMA_PORT || 11434);
+const ollamaServer = http.createServer(server.listeners("request")[0]);
+ollamaServer.on("error", (e) => console.log(`skipping ollama fake on :${OLLAMA_PORT} (${e.code})`));
+ollamaServer.listen(OLLAMA_PORT, "127.0.0.1", () => console.log(`fake ollama on http://127.0.0.1:${OLLAMA_PORT}/api/chat`));

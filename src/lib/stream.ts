@@ -1,9 +1,19 @@
+function isObj(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/**
+ * Emit the displayable text from one streamed event. `chunk` may be a raw SSE
+ * `data:` payload or a bare JSON line — Ollama's native /api/chat streams
+ * NDJSON, which has no `data:` prefix but otherwise carries the same
+ * `message.content` / `message.thinking` fields handled here.
+ */
 export function parseSSEChunk(chunk: string, onText: (t: string) => void) {
   const lines = chunk.split("\n");
   for (const line of lines) {
     const t = line.trim();
-    if (!t.startsWith("data:")) continue;
-    const data = t.slice(5).trim();
+    if (!t) continue;
+    const data = t.startsWith("data:") ? t.slice(5).trim() : t;
     if (!data || data === "[DONE]" || data === "[done]") continue;
     try {
       const json = JSON.parse(data);
@@ -32,6 +42,14 @@ export function parseSSEChunk(chunk: string, onText: (t: string) => void) {
         (typeof json.content === "string" ? json.content : "") ??
         "";
       if (typeof choiceDelta === "string" && choiceDelta) onText(choiceDelta);
+      // Ollama native /api/chat: text and thinking sit on `message`, and the
+      // stream is NDJSON rather than SSE — this shape is reused for both.
+      if (isObj(json.message)) {
+        const msgThinking = typeof json.message.thinking === "string" ? json.message.thinking : "";
+        const msgContent = typeof json.message.content === "string" ? json.message.content : "";
+        if (msgThinking) onText(msgThinking);
+        if (msgContent) onText(msgContent);
+      }
       // Top-level `delta.content` — proxies that omit the choices envelope.
       if (
         !json.choices &&
@@ -96,6 +114,30 @@ export async function streamResponse(res: Response, onText: (t: string) => void)
   let full = "";
   let buffer = "";
   const isSSE = contentType.includes("text/event-stream");
+  // Ollama's native /api/chat streams newline-delimited JSON, not SSE: there is
+  // no `data:` prefix to key off, so it needs its own line-based path.
+  const isNDJSON = contentType.includes("application/x-ndjson");
+
+  if (isNDJSON) {
+    const emit = (line: string) => {
+      if (!line.trim()) return;
+      parseSSEChunk(line, (t) => {
+        full += t;
+        onText(t);
+      });
+    };
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) emit(line);
+    }
+    buffer += decoder.decode();
+    emit(buffer);
+    return full;
+  }
 
   while (true) {
     const { done, value } = await reader.read();
