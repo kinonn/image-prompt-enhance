@@ -17,10 +17,12 @@ Next.js 16 (App Router, TypeScript) app that turns an uploaded image into a deta
 - `npm run dev` — dev server
 - `npm run build` / `npm run start` — production build / serve
 - `npm run lint` — ESLint (next/core-web-vitals + typescript)
+- `npm run test:proxy` — end-to-end check of the LLM routes against a fake provider (start the app on port 3100 first: `npm start -- -p 3100`)
 
 ## Architecture rules
 
 - **All LLM calls go through server-side proxy routes** in `src/app/api/{models,describe,refine,chat}/route.ts`. Never call a provider directly from the client.
+- **Every LLM route goes through `proxyLLMRequest`** (`src/lib/proxy.ts`), which owns the SSRF check, endpoint dispatch, upstream fetch, SSE passthrough, and the non-streaming fallback. A route validates its inputs, then only builds a payload — don't re-add `fetch`, header building, or response unwrapping to a route.
 - **Every provider URL must be validated** with `assertSafeProviderUrl` (`src/lib/ssrf.ts`) before fetching. Private/local hosts are allowed; cloud metadata, loopback, multicast, reserved, and unspecified addresses are blocked.
 - **Endpoint dispatch is centralized** in `src/lib/llm.ts` (`getEndpointKind` / `getEndpointUrl`): `/chat/completions` (OpenAI-style), `/responses` (Grok, GPT, Muse Spark), `/messages` (Claude, Gemini, Qwen, MiniMax on Go). Add new model families there, not in route handlers.
 - **Streaming**: use `streamResponse` / `parseSSEChunk` (`src/lib/stream.ts`). Providers that ignore `stream: true` are unwrapped server-side via `extractResponseText` (`src/lib/extract.ts`) — don't drop the non-streaming fallback.

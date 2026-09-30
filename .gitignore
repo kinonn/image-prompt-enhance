@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+# fake-provider request recordings from proxy-e2e.mjs
+/.proxy-e2e-records/
 
 # next.js
 /.next/

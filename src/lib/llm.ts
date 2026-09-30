@@ -55,6 +55,16 @@ const EFFORT_BUDGET_TOKENS: Record<ThinkingEffort, number> = {
 };
 
 /**
+ * Output cap for Anthropic-style /messages requests, which always require
+ * `max_tokens`. It must exceed the largest thinking budget (16384) and still
+ * leave room for the final answer: reasoning models otherwise burn the whole
+ * cap on thinking and stream no text at all, which surfaces as an empty
+ * refinement. Every /messages payload must use this value — a lower cap
+ * reintroduces the truncation bug.
+ */
+export const ANTHROPIC_MAX_TOKENS = 32768;
+
+/**
  * Translate a thinking-effort selection into provider-specific request params.
  * "Default" (empty) returns nothing so no effort parameter is sent upstream.
  */
@@ -103,11 +113,7 @@ export function buildAnthropicPayload(model: string, system: string, userContent
   return {
     model,
     stream: true,
-    // Anthropic-style requests require max_tokens. It must exceed the largest
-    // thinking budget (16384) and still leave room for the final answer:
-    // reasoning models otherwise burn the whole cap on thinking and stream no
-    // text at all, which surfaces as an empty refinement.
-    max_tokens: 32768,
+    max_tokens: ANTHROPIC_MAX_TOKENS,
     system,
     messages: [{ role: "user", content }],
     ...applyThinkingEffort("messages", effort),

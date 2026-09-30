@@ -75,6 +75,18 @@ Notes:
 
 All LLM calls go through server to avoid CORS and keep keys off the client network tab (still in localStorage, never committed).
 
+Routes share one transport path (`src/lib/proxy.ts`): it validates the provider URL, picks the endpoint from `src/lib/llm.ts`, forwards the request, and unwraps the response. A route only builds its payload. Add new model families and endpoint quirks in `lib/llm.ts` — not in a route.
+
+## Tests
+
+```bash
+npm run build
+npm start -- -p 3100   # in one shell
+npm run test:proxy      # in another
+```
+
+`npm run test:proxy` boots a fake provider on `127.0.0.1:9099`, drives the real `/api/{describe,refine,chat}` routes over HTTP, and replays the SSE responses through the app's own `parseSSEChunk`. It covers endpoint dispatch per model family, SSE passthrough, the non-streaming fallback, effort translation, auth headers, SSRF rejection, and the `/messages` `max_tokens` cap. Override the app URL with `APP_URL=`.
+
 ## Security / SSRF
 
 The server-side proxy validates every provider `baseUrl` before fetching it (`src/lib/ssrf.ts`). Private/local network addresses (RFC1918, CGNAT, link-local, ULA) and `.local` (mDNS/Bonjour) hostnames are allowed so local LLM providers (Ollama, LM Studio, LAN devices like `mac-mini.local` or `192.168.1.50`) work. Only the cloud metadata endpoint (`169.254.169.254`), loopback, multicast, reserved, and unspecified addresses are refused. To permit additional hosts, set the comma-separated `ALLOWED_PROVIDER_HOSTS` env var.
@@ -103,7 +115,7 @@ src/app/api/{models,describe,refine,chat}/route.ts
 src/app/api/state/route.ts          # logged-in user's in-memory state (GET/PUT)
 src/app/api/auth/[...nextauth]/route.ts # NextAuth handlers
 src/auth.ts               # NextAuth config (Google provider, JWT sessions)
-src/lib/{providers, prompts, image, llm, extract, ssrf, stream, utils, nav, state-types, server-store}.ts
+src/lib/{providers, prompts, image, llm, proxy, extract, ssrf, stream, utils, nav, state-types, server-store}.ts
 src/components/{AppShell, AppSidebar, DropZone, PromptCard, RefineBar, SettingsDrawer, ChatComposer, ChatThread, providers-context, retained-state, auth-context, theme-provider, ui/*}
 ```
 

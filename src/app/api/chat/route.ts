@@ -1,16 +1,18 @@
 import { NextRequest } from "next/server";
 import { CHAT_SYSTEM_PROMPT } from "@/lib/prompts";
-import { getEndpointUrl, getEndpointKind, applyThinkingEffort } from "@/lib/llm";
-import { extractResponseText } from "@/lib/extract";
-import { assertSafeProviderUrl } from "@/lib/ssrf";
-import { isEffortSelection } from "@/lib/effort";
+import { ANTHROPIC_MAX_TOKENS, applyThinkingEffort } from "@/lib/llm";
+import { jsonError, proxyLLMRequest, toErrorResponse } from "@/lib/proxy";
 import type { EffortSelection } from "@/lib/effort";
+
+interface ClientMessage {
+  role: string;
+  content: string;
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { messages, provider, model, systemPrompt, imageBase64, mime, effort } = body as {
-      messages?: { role: string; content: string }[];
+    const { messages, provider, model, systemPrompt, imageBase64, mime, effort } = (await req.json()) as {
+      messages?: ClientMessage[];
       provider?: { baseUrl?: string; apiKey?: string };
       model?: string;
       systemPrompt?: string;
@@ -18,121 +20,94 @@ export async function POST(req: NextRequest) {
       mime?: string;
       effort?: unknown;
     };
-    const thinkingEffort: EffortSelection = isEffortSelection(effort) ? effort : "";
 
     if (!Array.isArray(messages) || messages.length === 0 || !provider?.baseUrl || !model) {
-      return new Response(JSON.stringify({ error: "Missing messages, provider, or model" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonError("Missing messages, provider, or model", 400);
     }
-
-    await assertSafeProviderUrl(provider.baseUrl);
-
-    const baseUrl = provider.baseUrl.replace(/\/$/, "");
-    const url = getEndpointUrl(baseUrl, model);
-    const kind = getEndpointKind(baseUrl, model);
-    const thinkingParams = applyThinkingEffort(kind, thinkingEffort);
 
     const system = typeof systemPrompt === "string" && systemPrompt.trim() ? systemPrompt.trim() : CHAT_SYSTEM_PROMPT;
+    const imagePart = imageBase64 ? { base64: imageBase64, mime: mime || "image/jpeg" } : null;
 
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (provider.apiKey) {
-      headers["Authorization"] = `Bearer ${provider.apiKey}`;
-      headers["x-api-key"] = provider.apiKey;
-    }
+    return await proxyLLMRequest(
+      { baseUrl: provider.baseUrl, apiKey: provider.apiKey, model, effort },
+      (kind, effort: EffortSelection) => {
+        const thinkingParams = applyThinkingEffort(kind, effort);
 
-    // Build provider-specific payload. Chat is multi-turn with optional image on last user message.
-    let payload: unknown;
-    if (kind === "chat") {
-      // OpenAI chat: system + history; last user may carry image_url
-      const lastUserImage = imageBase64
-        ? [{ type: "text" as const, text: messages[messages.length - 1]?.content || "" }, { type: "image_url" as const, image_url: { url: `data:${mime || "image/jpeg"};base64,${imageBase64}` } }]
-        : undefined;
-
-      if (lastUserImage) {
-        // Replace last message content with multimodal
-        const history = messages.slice(0, -1);
-        payload = {
-          model,
-          stream: true,
-          temperature: 0.7,
-          ...thinkingParams,
-          messages: [{ role: "system", content: system }, ...history, { role: "user", content: lastUserImage }],
-        };
-      } else {
-        // Use buildChatPayload pattern but with history
-        const msgs = [{ role: "system", content: system } as const, ...messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content }))];
-        payload = { model, stream: true, temperature: 0.7, ...thinkingParams, messages: msgs };
-      }
-    } else if (kind === "messages") {
-      // Anthropic: system separate, messages array; image on last user
-      const anthroMessages = messages.map((m, i) => {
-        const isLast = i === messages.length - 1 && imageBase64 && m.role === "user";
-        if (isLast) {
+        if (kind === "chat") {
+          // OpenAI-style: system + history; the last user message may carry an image.
+          if (imagePart) {
+            const history = messages.slice(0, -1);
+            const lastContent = [
+              { type: "text" as const, text: messages[messages.length - 1]?.content || "" },
+              { type: "image_url" as const, image_url: { url: `data:${imagePart.mime};base64,${imagePart.base64}` } },
+            ];
+            return {
+              model,
+              stream: true,
+              temperature: 0.7,
+              ...thinkingParams,
+              messages: [
+                { role: "system", content: system },
+                ...history,
+                { role: "user", content: lastContent },
+              ],
+            };
+          }
           return {
-            role: "user",
-            content: [
-              { type: "text", text: m.content },
-              { type: "image", source: { type: "base64", media_type: mime || "image/jpeg", data: imageBase64 } },
+            model,
+            stream: true,
+            temperature: 0.7,
+            ...thinkingParams,
+            messages: [
+              { role: "system", content: system },
+              ...messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
             ],
           };
         }
-        return { role: m.role, content: [{ type: "text", text: m.content }] };
-      });
-      payload = { model, stream: true, max_tokens: 4096, system, ...thinkingParams, messages: anthroMessages };
-    } else {
-      // Responses API: flatten history into input
-      const input = messages.map((m) => ({
-        role: m.role,
-        content: [{ type: "input_text", text: m.content }],
-      }));
-      // Attach image to last user if present
-      if (imageBase64 && input.length > 0) {
-        const last = input[input.length - 1] as { role: string; content: unknown[] };
-        if (last.role === "user") {
-          (last.content as unknown[]).push({ type: "input_image", image_url: `data:${mime || "image/jpeg"};base64,${imageBase64}` });
+
+        if (kind === "messages") {
+          // Anthropic: system is a top-level field; the image rides on the last user turn.
+          const anthropicMessages = messages.map((m, i) => {
+            const isLast = i === messages.length - 1 && imagePart && m.role === "user";
+            if (isLast) {
+              return {
+                role: "user",
+                content: [
+                  { type: "text", text: m.content },
+                  { type: "image", source: { type: "base64", media_type: imagePart.mime, data: imagePart.base64 } },
+                ],
+              };
+            }
+            return { role: m.role, content: [{ type: "text", text: m.content }] };
+          });
+          return {
+            model,
+            stream: true,
+            max_tokens: ANTHROPIC_MAX_TOKENS,
+            system,
+            ...thinkingParams,
+            messages: anthropicMessages,
+          };
         }
-      }
-      // Prepend system as first input_text
-      payload = { model, stream: true, ...thinkingParams, input: [{ role: "user", content: [{ type: "input_text", text: system }] }, ...input] };
-    }
 
-    const upstream = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload),
-    });
-
-    if (!upstream.ok) {
-      const text = await upstream.text();
-      return new Response(JSON.stringify({ error: `Provider error ${upstream.status}: ${text.slice(0, 800)}` }), {
-        status: upstream.status,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
-    const contentType = upstream.headers.get("content-type") || "";
-    if (contentType.includes("text/event-stream")) {
-      return new Response(upstream.body, {
-        headers: {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          Connection: "keep-alive",
-        },
-      });
-    }
-
-    const json = await upstream.json();
-    const content = extractResponseText(json);
-    return new Response(content, {
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-    });
+        // Responses API: flatten history into input, with the system prompt first.
+        const input = messages.map((m) => ({
+          role: m.role,
+          content: [{ type: "input_text", text: m.content }],
+        }));
+        const last = input[input.length - 1] as { role: string; content: unknown[] } | undefined;
+        if (imagePart && last && last.role === "user") {
+          last.content.push({ type: "input_image", image_url: `data:${imagePart.mime};base64,${imagePart.base64}` });
+        }
+        return {
+          model,
+          stream: true,
+          ...thinkingParams,
+          input: [{ role: "user", content: [{ type: "input_text", text: system }] }, ...input],
+        };
+      },
+    );
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return new Response(JSON.stringify({ error: msg }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return toErrorResponse(e);
   }
 }
