@@ -33,3 +33,58 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # Pins the /messages max_tokens invariant that drifted once already: the chat
+  # route shipped 4096 while describe/refine shipped 32768, and reasoning models
+  # then either exhausted the cap or had the request rejected outright. Runs as
+  # its own job so it adds no wall-clock time to lint-and-build.
+  proxy-e2e:
+    name: LLM proxy e2e
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # `node-version: 22` resolves to the newest 22.x, which satisfies the
+      # `engines` floor in package.json. Keep it above 22.18: the harness
+      # imports src/lib/stream.ts with no flags, and Node only unflagged
+      # type stripping (so that import works) in 22.18.0. Lowering this below
+      # 22.18 breaks the job with an opaque unknown-extension error.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # The harness drives the real route handlers over HTTP against a fake
+      # provider on 127.0.0.1:9099 (which it starts itself), so it needs a live
+      # Next server. `next start` prints a "does not work with output: standalone"
+      # warning under this project's standalone output; it serves correctly
+      # regardless. The harness is idempotent, so re-runs on a dirty checkout are
+      # safe.
+      - name: Run proxy e2e against a live server
+        run: |
+          # The server's output goes to a log file rather than this step's
+          # stdout: a backgrounded process that inherits the step's pipe keeps
+          # it open, and the step then appears to hang. The log is only dumped
+          # if the server never comes up.
+          npm start -- -p 3100 > /tmp/next-server.log 2>&1 &
+          ready=0
+          for _ in $(seq 1 60); do
+            if curl -sf -o /dev/null http://127.0.0.1:3100/; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::Next server never became ready on :3100"
+            cat /tmp/next-server.log
+            exit 1
+          fi
+          npm run test:proxy

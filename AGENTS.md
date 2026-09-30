@@ -17,12 +17,12 @@ Next.js 16 (App Router, TypeScript) app that turns an uploaded image into a deta
 - `npm run dev` — dev server
 - `npm run build` / `npm run start` — production build / serve
 - `npm run lint` — ESLint (next/core-web-vitals + typescript)
-- `npm run test:proxy` — end-to-end check of the LLM routes against a fake provider (start the app on port 3100 first: `npm start -- -p 3100`)
+- `npm run test:proxy` — end-to-end check of the LLM routes against a fake provider (start the app on port 3100 first: `npm start -- -p 3100`). `next start` prints `"next start" does not work with "output: standalone"` — that warning is expected and harmless here; the server does serve routes and static assets correctly. Safe to run repeatedly.
 
 ## Architecture rules
 
 - **All LLM calls go through server-side proxy routes** in `src/app/api/{models,describe,refine,chat}/route.ts`. Never call a provider directly from the client.
-- **Every LLM route goes through `proxyLLMRequest`** (`src/lib/proxy.ts`), which owns the SSRF check, endpoint dispatch, upstream fetch, SSE passthrough, and the non-streaming fallback. A route validates its inputs, then only builds a payload — don't re-add `fetch`, header building, or response unwrapping to a route.
+- **Every LLM generation route (`describe`, `refine`, `chat`) goes through `proxyLLMRequest`** (`src/lib/proxy.ts`), which owns the SSRF check, endpoint dispatch, upstream fetch, SSE passthrough, and the non-streaming fallback. A route validates its inputs, then only builds a payload — don't re-add `fetch`, header building, or response unwrapping to a route. `api/models` is the deliberate exception: it's a GET model-listing with no request body, payload builder, endpoint dispatch, or streaming, so it calls `assertSafeProviderUrl` and `fetch` itself. Don't "fix" it by routing it through `proxyLLMRequest`.
 - **Every provider URL must be validated** with `assertSafeProviderUrl` (`src/lib/ssrf.ts`) before fetching. Private/local hosts are allowed; cloud metadata, loopback, multicast, reserved, and unspecified addresses are blocked.
 - **Endpoint dispatch is centralized** in `src/lib/llm.ts` (`getEndpointKind` / `getEndpointUrl`): `/chat/completions` (OpenAI-style), `/responses` (Grok, GPT, Muse Spark), `/messages` (Claude, Gemini, Qwen, MiniMax on Go). Add new model families there, not in route handlers.
 - **Streaming**: use `streamResponse` / `parseSSEChunk` (`src/lib/stream.ts`). Providers that ignore `stream: true` are unwrapped server-side via `extractResponseText` (`src/lib/extract.ts`) — don't drop the non-streaming fallback.
@@ -35,5 +35,6 @@ Next.js 16 (App Router, TypeScript) app that turns an uploaded image into a deta
 
 - Path alias `@/*` → `src/*`.
 - `react-hooks/set-state-in-effect` is intentionally disabled in `eslint.config.mjs` — don't re-enable it.
+- Every `/messages` payload must use `ANTHROPIC_MAX_TOKENS` (`src/lib/llm.ts`), never a literal. It must exceed the largest thinking budget (`high` = 16384) because Anthropic rejects the request when `budget_tokens` is not strictly less than `max_tokens`. A lower cap reproduces the bug where reasoning models exhaust the cap and stream no answer.
 - System prompts live in `src/lib/prompts.ts` (`DESCRIBE_SYSTEM_PROMPT`, `REFINE_SYSTEM_PROMPT`, `CHAT_SYSTEM_PROMPT`). The describe prompt is user-editable and persisted in `localStorage:image-prompt-describe-prompt`.
 - Keep the `nextjs-agent-rules` block above intact — `next dev` re-adds it; add content outside the markers.

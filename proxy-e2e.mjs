@@ -46,8 +46,12 @@ const run = async () => {
   // Start from a clean slate: earlier runs would pollute the upstream assertions.
   fs.mkdirSync(DIR, { recursive: true });
   for (const f of fs.readdirSync(DIR)) {
-    // Only ever delete our own recordings (NNN-METHOD-_v1_path.json).
-    if (!/^\d{3}-[A-Z]+-_v1_/.test(f)) continue;
+    // Only ever delete our own recordings (NNN-METHOD-_path.json). The path is
+    // deliberately NOT pinned to `_v1_`: the 404 check below records
+    // `/nowhere/v1/chat/completions` as `NNN-POST-_nowhere_v1_...json`, and a
+    // narrower pattern left that file behind to be counted in the matrix
+    // snapshot on the next run — so run 2+ failed spuriously on a good tree.
+    if (!/^\d{3}-[A-Z]+-_/.test(f)) continue;
     fs.rmSync(`${DIR}/${f}`);
   }
 
