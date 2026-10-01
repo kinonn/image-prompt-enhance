@@ -98,6 +98,10 @@ export default function Home() {
     setIsDescribing(true);
     setStreamingText("");
     setRefinedText("");
+    let loopDetected = false;
+    const onLoop = () => {
+      loopDetected = true;
+    };
 
     try {
       const res = await fetch("/api/describe", {
@@ -126,15 +130,20 @@ export default function Home() {
       }
 
       let full = "";
-      await streamResponse(res, (chunk) => {
-        full += chunk;
-        setStreamingText(full);
-      });
+      await streamResponse(
+        res,
+        (chunk) => {
+          full += chunk;
+          setStreamingText(full);
+        },
+        onLoop
+      );
 
       if (!full.trim()) throw new Error("Empty response from model");
 
       setPromptText(full.trim());
-      toast.success("Prompt generated");
+      if (loopDetected) toast.warning("Output was repeating itself, so it was cut short.");
+      else toast.success("Prompt generated");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       toast.error(msg);
@@ -163,6 +172,10 @@ export default function Home() {
     }
     setIsRefining(true);
     setRefinedText("");
+    let loopDetected = false;
+    const onLoop = () => {
+      loopDetected = true;
+    };
 
     try {
       const res = await fetch("/api/refine", {
@@ -190,15 +203,20 @@ export default function Home() {
       }
 
       let full = "";
-      await streamResponse(res, (chunk) => {
-        full += chunk;
-        setRefinedText(full);
-      });
+      await streamResponse(
+        res,
+        (chunk) => {
+          full += chunk;
+          setRefinedText(full);
+        },
+        onLoop
+      );
 
       if (!full.trim()) throw new Error("Empty refinement");
 
       setRefinedText(full.trim());
-      toast.success("Prompt refined");
+      if (loopDetected) toast.warning("Output was repeating itself, so it was cut short.");
+      else toast.success("Prompt refined");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       toast.error(msg);

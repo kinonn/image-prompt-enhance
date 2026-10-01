@@ -1,10 +1,11 @@
 // End-to-end check of the refactored proxy routes against the fake provider.
 // Exercises the real Next.js server and the real client SSE parser:
 // endpoint dispatch per model family, SSE passthrough, non-streaming
-// unwrapping, effort translation, and the /messages max_tokens cap.
+// unwrapping, effort translation, the /messages max_tokens cap, and the
+// repetition-loop guard that stops a degenerate model from streaming forever.
 import fs from "node:fs";
 import { spawn } from "node:child_process";
-import { parseSSEChunk } from "./src/lib/stream.ts";
+import { parseSSEChunk, hasRepeatedTail } from "./src/lib/stream.ts";
 import { getEndpointKind, getEndpointUrl, buildOllamaPayload, OLLAMA_NUM_CTX, OLLAMA_NUM_PREDICT } from "./src/lib/llm.ts";
 
 const BASE = process.env.APP_URL || "http://127.0.0.1:3100";
@@ -118,6 +119,37 @@ const run = async () => {
   check("ollama payload strips the data: prefix", ollamaPayload.messages.at(-1).images?.[0] === IMG, JSON.stringify(ollamaPayload.messages.at(-1).images));
   check("ollama payload sets options", ollamaPayload.options?.num_ctx === OLLAMA_NUM_CTX && ollamaPayload.options?.num_predict === OLLAMA_NUM_PREDICT, JSON.stringify(ollamaPayload.options));
   check("ollama payload has system first", ollamaPayload.messages[0].role === "system" && ollamaPayload.messages[0].content === "sys", JSON.stringify(ollamaPayload.messages[0]));
+
+  // Repetition-loop guard. The period of a real loop is whatever clause the
+  // model latched onto, so detection has to be period-agnostic while leaving
+  // ordinary prose (including deliberately repeated lists) alone.
+  const loopClause = "a photorealistic three-quarter portrait of a woman in a trench coat standing at the far right, ";
+  const honest =
+    "A photorealistic three-quarter portrait of a woman in a double-breasted trench coat, framed waist up at eye level. " +
+    "The camera sits at eye level with an 85mm lens, shallow depth of field, the plane of focus on her face and the background falling soft. " +
+    "She occupies the right third, her shoulder cropped by the frame edge at the far right. Behind her, a pale overcast sky. " +
+    "Light comes from a window camera-left and above, giving soft shadow edges and a rim of light along her hair at the top. " +
+    "The palette is muted olive, deep navy, and off-white. Skin is fair with peach undertones, texture visible, faint freckles. " +
+    "Hair is dark brown, wavy, parted left, falling past the jaw. No text or signage, no watermark, no logo, no bystanders, no clutter.";
+  const absenceList = "no text or signage, no watermark, no logo, no border, no bystanders, no clutter, ";
+  check("guard flags a long-period loop", hasRepeatedTail(loopClause.repeat(40)) === true);
+  check("guard flags a short-period loop", hasRepeatedTail("the woman has dark hair and ".repeat(40)) === true);
+  check("guard passes an honest description", hasRepeatedTail(honest) === false, honest.slice(-80));
+  check("guard passes a repeated absence list", hasRepeatedTail(absenceList.repeat(3)) === false, absenceList.repeat(3).slice(-80));
+  check("guard passes short and empty input", hasRepeatedTail("hello") === false && hasRepeatedTail("") === false);
+  // The costly failure mode is a false positive: honest text is tested at every
+  // prefix, because during streaming that is exactly what the guard is fed.
+  let prefixFalsePositives = 0;
+  for (let n = 0; n <= honest.length; n++) if (hasRepeatedTail(honest.slice(0, n))) prefixFalsePositives += 1;
+  check("guard passes every streaming prefix of honest prose", prefixFalsePositives === 0, `${prefixFalsePositives} prefixes tripped`);
+  // Detection must not depend on the loop's period: the model latches onto
+  // whatever clause length it likes, including very short ones.
+  let undetectedPeriods = 0;
+  for (let p = 6; p <= 90; p++) {
+    const unit = "a".repeat(p - 1) + " ";
+    if (!hasRepeatedTail(("Warm light falls across the room. " + unit).repeat(6))) undetectedPeriods += 1;
+  }
+  check("guard detects every period 6..90", undetectedPeriods === 0, `${undetectedPeriods} periods missed`);
 
   // End-to-end through the real routes, which needs the fake bound to :11434.
   // A real Ollama already on that port makes these unrunnable locally; CI is

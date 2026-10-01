@@ -75,14 +75,22 @@ export default function ChatPage() {
       }
 
       let full = "";
-      await streamResponse(res, (chunk) => {
-        full += chunk;
-        setStreamingText(full);
-      });
+      let loopDetected = false;
+      await streamResponse(
+        res,
+        (chunk) => {
+          full += chunk;
+          setStreamingText(full);
+        },
+        () => {
+          loopDetected = true;
+        }
+      );
 
       if (!full.trim() && !isStreaming) throw new Error("Empty response");
 
       setMessages((prev) => [...prev, { role: "assistant", content: full.trim(), imagePreviewUrl: null }]);
+      if (loopDetected) toast.warning("Reply was repeating itself, so it was cut short.");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       toast.error(msg);
