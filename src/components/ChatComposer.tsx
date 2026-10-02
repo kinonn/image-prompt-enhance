@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ThinkingEffortSelect } from "@/components/ThinkingEffortSelect";
 import type { Provider, Model } from "@/lib/providers";
 import type { EffortSelection } from "@/lib/effort";
-import { validateFile } from "@/lib/image";
+import { validateFile, readImageSize, formatImageSize } from "@/lib/image";
 
 interface ChatComposerProps {
   value: string;
@@ -44,17 +44,29 @@ export function ChatComposer({
   loadingModelsFor,
   onOpenSettings,
 }: ChatComposerProps) {
-  const [pendingImage, setPendingImage] = React.useState<{ file: File; previewUrl: string } | null>(null);
+  const [pendingImage, setPendingImage] = React.useState<{
+    file: File;
+    previewUrl: string;
+    width: number | null;
+    height: number | null;
+  } | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const provider = providers.find((p) => p.id === chatProviderId);
   const models = modelsCache[chatProviderId] || [];
   const isLoadingModels = loadingModelsFor === chatProviderId;
+  const pendingSize = formatImageSize(pendingImage?.width, pendingImage?.height);
 
   const handleFile = React.useCallback((file: File) => {
     const err = validateFile(file);
     if (err) return;
     if (pendingImage?.previewUrl) URL.revokeObjectURL(pendingImage.previewUrl);
-    setPendingImage({ file, previewUrl: URL.createObjectURL(file) });
+    setPendingImage({ file, previewUrl: URL.createObjectURL(file), width: null, height: null });
+    readImageSize(file)
+      .then(({ width, height }) => {
+        // Guard against a newer selection (or a clear) landing while decoding.
+        setPendingImage((prev) => (prev?.file === file ? { ...prev, width, height } : prev));
+      })
+      .catch(() => {});
   }, [pendingImage]);
 
   const clearPending = () => {
@@ -117,7 +129,17 @@ export function ChatComposer({
         <div className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-900">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={pendingImage.previewUrl} alt="Pending" className="h-12 w-12 rounded-lg object-cover" />
-          <span className="truncate text-xs text-zinc-600 dark:text-zinc-400 flex-1">{pendingImage.file.name}</span>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-xs text-zinc-600 dark:text-zinc-400">{pendingImage.file.name}</span>
+            {pendingSize && (
+              <span
+                className="truncate text-[11px] tabular-nums text-zinc-400 dark:text-zinc-500"
+                title="Original dimensions and aspect ratio"
+              >
+                {pendingSize}
+              </span>
+            )}
+          </div>
           <Button type="button" variant="ghost" size="sm" onClick={clearPending} className="h-7 w-7 p-0">
             <X className="h-4 w-4" />
           </Button>

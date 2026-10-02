@@ -66,10 +66,10 @@ export default function Home() {
     const url = URL.createObjectURL(f);
     // Revoke previous preview if any before replacing
     if (retained.previewUrl) URL.revokeObjectURL(retained.previewUrl);
-    setRetained((s) => ({ ...s, file: f, previewUrl: url, streamingText: "", promptText: "", refinedText: "" }));
+    setRetained((s) => ({ ...s, file: f, previewUrl: url, streamingText: "", promptText: "", refinedText: "", imageWidth: null, imageHeight: null }));
     try {
-      const { base64, mime } = await resizeImage(f, 1024, 0.8);
-      setRetained((s) => ({ ...s, imageBase64: base64, imageMime: mime }));
+      const { base64, mime, sourceWidth, sourceHeight } = await resizeImage(f, 1024, 0.8);
+      setRetained((s) => ({ ...s, imageBase64: base64, imageMime: mime, imageWidth: sourceWidth, imageHeight: sourceHeight }));
     } catch (e) {
       toast.error("Failed to process image");
       console.error(e);
@@ -83,7 +83,7 @@ export default function Home() {
   // Remove only the uploaded image — the generated and refined prompts are left untouched
   const handleRemoveImage = () => {
     if (retained.previewUrl) URL.revokeObjectURL(retained.previewUrl);
-    setRetained((s) => ({ ...s, file: null, previewUrl: null, imageBase64: null }));
+    setRetained((s) => ({ ...s, file: null, previewUrl: null, imageBase64: null, imageWidth: null, imageHeight: null }));
   };
 
   const handleGenerate = async () => {
@@ -255,6 +255,8 @@ export default function Home() {
             previewUrl={previewUrl}
             onClear={handleRemoveImage}
             fileName={file?.name}
+            imageWidth={retained.imageWidth}
+            imageHeight={retained.imageHeight}
             disabled={isDescribing || isRefining}
             providers={providers}
             modelsCache={modelsCache}

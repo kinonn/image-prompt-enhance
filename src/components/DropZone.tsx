@@ -5,7 +5,7 @@ import { Upload, Image as ImageIcon, ClipboardPaste, X, ChevronDown, Settings, L
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { validateFile } from "@/lib/image";
+import { validateFile, formatImageSize } from "@/lib/image";
 import { DEFAULT_DESCRIBE_SYSTEM_PROMPT } from "@/lib/prompts";
 import { ThinkingEffortSelect } from "@/components/ThinkingEffortSelect";
 import type { Provider, Model } from "@/lib/providers";
@@ -18,6 +18,9 @@ interface DropZoneProps {
   previewUrl: string | null;
   onClear: () => void;
   fileName?: string;
+  /** Natural size of the original upload — shown next to the file name. */
+  imageWidth?: number | null;
+  imageHeight?: number | null;
   disabled?: boolean;
   providers: Provider[];
   modelsCache: Record<string, Model[]>;
@@ -36,6 +39,8 @@ export function DropZone({
   previewUrl,
   onClear,
   fileName,
+  imageWidth,
+  imageHeight,
   disabled,
   providers,
   modelsCache,
@@ -52,6 +57,7 @@ export function DropZone({
   const selectedProvider = providers.find((p) => p.id === selectedProviderId);
   const models = modelsCache[selectedProviderId] || [];
   const isLoadingModels = loadingModelsFor === selectedProviderId;
+  const imageSize = formatImageSize(imageWidth, imageHeight);
   const [isDragOver, setIsDragOver] = React.useState(false);
   const [describeOpen, setDescribeOpen] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -229,7 +235,17 @@ export function DropZone({
         {/* eslint-disable-next-line @next/next/no-img-element -- object URL preview, not optimizable */}
         <img src={previewUrl} alt="Preview" className="max-h-[420px] w-full object-contain bg-zinc-100 dark:bg-zinc-900" />
         <div className="flex items-center justify-between gap-3 border-t border-zinc-200 bg-white px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900">
-          <span className="truncate text-sm text-zinc-600 dark:text-zinc-400 flex-1">{fileName}</span>
+          <div className="flex min-w-0 flex-1 items-baseline gap-2">
+            <span className="truncate text-sm text-zinc-600 dark:text-zinc-400">{fileName}</span>
+            {imageSize && (
+              <span
+                className="shrink-0 whitespace-nowrap text-xs tabular-nums text-zinc-400 dark:text-zinc-500"
+                title="Original dimensions and aspect ratio, before the auto-resize"
+              >
+                {imageSize}
+              </span>
+            )}
+          </div>
           <Button variant="outline" size="sm" onClick={onClear} disabled={disabled}>
             <X className="h-4 w-4" />
             Remove

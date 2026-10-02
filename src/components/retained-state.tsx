@@ -9,6 +9,9 @@ export interface RetainedImageState {
   previewUrl: string | null;
   imageBase64: string | null;
   imageMime: string;
+  /** Natural size of the original upload (not the downscaled base64 copy). */
+  imageWidth: number | null;
+  imageHeight: number | null;
 }
 
 export interface ImagePromptState extends RetainedImageState {
@@ -32,6 +35,8 @@ const defaultImageState: ImagePromptState = {
   previewUrl: null,
   imageBase64: null,
   imageMime: "image/jpeg",
+  imageWidth: null,
+  imageHeight: null,
   promptText: "",
   refinedText: "",
   refineInstruction: "",
@@ -86,6 +91,8 @@ export function RetainedStateProvider({ children }: { children: React.ReactNode 
         previewUrl,
         imageBase64: p.imageBase64,
         imageMime: p.imageMime || "image/jpeg",
+        imageWidth: p.imageWidth ?? null,
+        imageHeight: p.imageHeight ?? null,
         promptText: p.promptText || "",
         refinedText: p.refinedText || "",
         refineInstruction: p.refineInstruction || "",
@@ -139,6 +146,8 @@ export function RetainedStateProvider({ children }: { children: React.ReactNode 
           image: {
             imageBase64: image.imageBase64,
             imageMime: image.imageMime,
+            imageWidth: image.imageWidth ?? undefined,
+            imageHeight: image.imageHeight ?? undefined,
             promptText: image.promptText,
             refinedText: image.refinedText,
             refineInstruction: image.refineInstruction,

@@ -27,6 +27,9 @@ export interface SettingsState {
 export interface PersistedImageState {
   imageBase64: string | null;
   imageMime: string;
+  /** Natural size of the *original* upload, before the 1024px downscale. */
+  imageWidth?: number;
+  imageHeight?: number;
   promptText: string;
   refinedText: string;
   refineInstruction: string;
